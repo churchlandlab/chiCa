@@ -6,11 +6,12 @@ Created on Thu Nov 18 14:04:00 2021
 """
 import numpy as np
 from scipy.io import loadmat
-from tkinter import Tk
+from tkinter import Tk #For interactive selection
 import tkinter.filedialog as filedialog
-import glob
+import glob #Search files in directory
 import matplotlib.pyplot as plt
-import warnings
+import warnings #Throw warning for unmatched drops
+import os #To create a directory
 
 
 #%%--------- Sort out the location of the files
@@ -136,11 +137,21 @@ plt.legend(["Rectified frame time difference", "Frame drop event"])
 plt.title("Detected dropping of single or multiple frames")
 plt.xlabel("Frames")
 plt.ylabel("Clock time difference between teensy and CPU (ms)")        
-        
     
+#%%-------- Save the obtained results to an easily python-readable file
 
+#Generate a new directory if needed
+if os.path.isdir(directory_name + "/trial_alignment") == False:
+    os.mkdir(directory_name + "/trial_alignment")
+    
+    
+#Get some info on session date and animal id    
+temp = os.path.split(directory_name)
+session_date = temp[1]
+animalID = os.path.split(temp[0])[1]    
 
-
-
-
-
+#Set the output file name and save relevant variables
+output_file = directory_name + "/trial_alignment/" + animalID + "_" + session_date + "_" + "trial_alignment"    
+np.savez(output_file, trial_start_frames = trial_start_frames, num_dropped = num_dropped,
+        frame_drop_event = frame_drop_event, dropped_per_event = dropped_per_event,
+        jump_size = jump_size, rounding_error = rounding_error)
