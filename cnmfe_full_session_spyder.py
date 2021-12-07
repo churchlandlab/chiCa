@@ -34,6 +34,11 @@ from caiman.utils.visualization import inspect_correlation_pnr
 from caiman.motion_correction import MotionCorrect
 from caiman.source_extraction.cnmf import params as params
 
+import os #For all the file path manipulations
+from time import time # For time logging
+import sys #To apppend the python path for the selection GUI
+sys.path.append('C:/Users/Anne/Documents/chiCa') #Include the path to the functions
+import neuron_selection_GUI
 #%%
 # Set up the logger; change this if you like.
 # You can log to a file using the filename parameter, or make the output more or less
@@ -120,6 +125,9 @@ def main():
 #  The pw_rigid flag set above, determines where to use rigid or pw-rigid
 #  motion correction
     if motion_correct:
+        #Track the time to compute shifts
+        mc_start_time = time()
+        
         # do motion correction rigid
         mc = MotionCorrect(fnames, dview=dview, **opts.get_group('motion'))
         mc.motion_correct(save_movie=True)
@@ -138,12 +146,15 @@ def main():
         bord_px = 0 if border_nan == 'copy' else bord_px
         fname_new = cm.save_memmap(fname_mc, base_name='memmap_', order='C',
                                    border_to_0=bord_px)
+        
+        mc_end_time = time()
+        #Display elapsed time
+        print(f"Motion correcition finished in {round(mc_end_time - mc_start_time)} s.")
+        
     else:  # if no motion correction just memory map the file
         fname_new = cm.save_memmap(filename_reorder, base_name='memmap_',
                                    order='C', border_to_0=0, dview=dview)
-#%%-- Save the shifts, the very basic implementation
-    import os
-    
+#%%-- Save the shifts, the very basic implementation    
     rigid_shifts = np.array(mc.shifts_rig) # Retrieve shifts from mc object
     
     outputPath = os.path.dirname(fnames[0]) #Assuming that you want the results in the same location
@@ -163,7 +174,7 @@ def main():
     gSiz = (13, 13)     # average diameter of a neuron, in general 4*gSig+1
     Ain = None          # possibility to seed with predetermined binary masks
     merge_thr = .7      # merging threshold, max correlation allowed
-    rf = 60             # half-size of the patches in pixels. e.g., if rf=40, patches are 80x80
+    rf = 80             # half-size of the patches in pixels. e.g., if rf=40, patches are 80x80
     stride_cnmf = 20    # amount of overlap between the patches in pixels
     #                     (keep it at least large as gSiz, i.e 4 times the neuron size gSig)
     tsub = 2            # downsampling factor in time for initialization,
@@ -211,6 +222,15 @@ def main():
                                     'del_duplicates': True,                # whether to remove duplicates from initialization
                                     'border_pix': bord_px})                # number of pixels to not consider in the borders)
 
+#%% Remove pixels with basically zero intensity but very few 
+    
+    medProj = np.median(images, axis=0, keepdims=True)
+    median_bool = np.squeeze(medProj < 1)
+    for k in range(images.shape[0]):
+        temp = images[k,:,:]
+        temp[median_bool] = 0.0001
+        images[k,:,:] = temp
+        
 # %% compute some summary images (correlation and peak to noise)
     # change swap dim if output looks weird, it is a problem with tiffile
     cn_filter, pnr = cm.summary_images.correlation_pnr(images[::10], gSig=gSig[0], swap_dim=False)
@@ -224,30 +244,25 @@ def main():
     print(min_corr) # min correlation of peak (from correlation image)
     print(min_pnr)  # min peak to noise ratio
 
-#%% Remove pixels with basically zero intensity but very few 
-    
-    medProj = np.median(images, axis=0, keepdims=True)
-    median_bool = np.squeeze(medProj < 1)
-    for k in range(images.shape[0]):
-        temp = images[k,:,:]
-        temp[median_bool] = 0.0001
-        images[k,:,:] = temp
-        
 #%% Shut donw shut down parallel pool and restart if desired
     dview.terminate()
     c, dview, n_processes = cm.cluster.setup_cluster(backend='local',
-                                                     n_processes=3,  # number of process to use, if you go out of memory try to reduce this one
+                                                     n_processes=4,  # number of process to use, if you go out of memory try to reduce this one
                                                      single_thread=False)
 # %% RUN CNMF ON PATCHES
+    cnmfe_start_time = time()
+    
     cnm = cnmf.CNMF(n_processes=n_processes, dview=dview, Ain=Ain, params=opts)
     cnm.fit(images)
     
+    #Display elapsed time
+    cnmfe_end_time = time()
+    print(f"Ran initialization and fit cnmfe model in {round(cnmfe_end_time - cnmfe_start_time)} s.")
+
+    # Save first round of results
+    cnm.save(outputPath + '/firstRound.hdf5') 
 #%% Manual curation and selection of reasonable neruons
-    
-    import sys
-    sys.path.append('C:/Users/Anne/Documents/caiman_notebooks') #Include the path to the functions
-    import neuron_selection_GUI
-    
+  
     keep_neuron, frame_slider = neuron_selection_GUI.run_neuron_selection(data_source = cnm)
     # Do the selection here. Don't advance until the selection is completed since further executions are not blocked!
     
@@ -260,11 +275,12 @@ def main():
 #%% Restart a new parallel pool
      dview.terminate()
     c, dview, n_processes = cm.cluster.setup_cluster(backend='local',
-                                                     n_processes=3,  # number of process to use, if you go out of memory try to reduce this one
+                                                     n_processes=6,  # number of process to use, if you go out of memory try to reduce this one
                                                      single_thread=False)
     
 #%% Run the fitting again with only the accepted components
     cnm.refit(images, dview = dview)
+    cnm.save(outputPath + '/secondRound.hdf5') 
 # %% ALTERNATE WAY TO RUN THE PIPELINE AT ONCE
     #   you can also perform the motion correction plus cnmf fitting steps
     #   simultaneously after defining your parameters object using
