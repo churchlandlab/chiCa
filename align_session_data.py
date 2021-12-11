@@ -154,4 +154,5 @@ animalID = os.path.split(temp[0])[1]
 output_file = directory_name + "/trial_alignment/" + animalID + "_" + session_date + "_" + "trial_alignment"    
 np.savez(output_file, trial_start_frames = trial_start_frames, num_dropped = num_dropped,
         frame_drop_event = frame_drop_event, dropped_per_event = dropped_per_event,
-        jump_size = jump_size, rounding_error = rounding_error, average_interval = average_interval)
+        jump_size = jump_size, rounding_error = rounding_error, average_interval = average_interval,
+        acquired_frame_num = acquired_frame_num)

@@ -9,9 +9,22 @@ from scipy.interpolate import CubicSpline
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 
+import sys #To apppend the python path for the selection GUI
+sys.path.append('C:/Users/Lukas Oesch/Documents/ChurchlandLab/chiCa') #Include the path to the functions
+import load_cnmfe_outputs
+
 #%%------load the cnmfe outputs and the alignment file
 
+data_source = "C:/Users/Lukas Oesch/Documents/ChurchlandLab/TestDataChipmunk/TestMiniscopeAlignment/LO012/20210824_112833/caiman/secondRound.hdf5"
+A, C, S, image_dims, frame_rate, neuron_num, recording_length, movie_file, spatial_spMat = load_cnmfe_outputs.load_data(data_source)
+    
 
+
+alignment_file = "C:/Users/Lukas Oesch/Documents/ChurchlandLab/TestDataChipmunk/TestMiniscopeAlignment/LO012/20210824_112833/trial_alignment/LO012_20210824_112833_trial_alignment.npz"
+
+alignment_directory = np.load(alignment_file) #Fill in later
+for key,val in alignment_directory.items(): #Retrieve all the entries 
+        exec(key + '=val')
 
 #%%-----Generate a vector with the time stamps matching the acquired frames (leaky)
 time_vect = np.arange(acquired_frame_num + num_dropped) #The actual recording length.
