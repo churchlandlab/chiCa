@@ -23,8 +23,9 @@ Tk().withdraw() #Don't show the tiny confirmation window
 directory_name = filedialog.askdirectory()
 
 
-#Assume standard data structure
-mscope_log_file = glob.glob(directory_name + '/miniscope/*.mscopelog')
+#Assume standard data structure with the one unique file with the desired file
+#extension in the respective folder.
+mscope_log_file = glob.glob(directory_name + '/miniscope/*.mscopelog') #Use glob to select all instances of files defined by the file extension.
 mscope_tStamps_file = directory_name + '/miniscope/timeStamps.csv'
 
 chipmunk_file = glob.glob(directory_name + '/chipmunk/*.mat')
@@ -34,11 +35,12 @@ camlog_file = glob.glob(directory_name + '/chipmunk/*.camlog')
 mscope_log = np.loadtxt(mscope_log_file[0], delimiter = ',', skiprows = 2) #Make sure to skip over the header lines and use comma as delimiter
 mscope_time_stamps = np.loadtxt(mscope_tStamps_file, delimiter = ',', skiprows = 1)
 
-temp = loadmat(chipmunk_file[0], squeeze_me=True, struct_as_record=True)
+temp = loadmat(chipmunk_file[0], squeeze_me=True, struct_as_record=True) #Load the behavioral data file 
 chipmunk_data = temp['SessionData']
 
 video_tracking =  np.loadtxt(camlog_file[0], delimiter = ',', skiprows = 6, comments='#')
-# State here the comments explicitly again
+#In the log file certain lines are preceded by #, meaning that these lines
+#comments that should be disregarded in the alignment.
 
 #%%-------Align trial start times
 # Remember that channel 23 is the Bpod input and channel 2 the miniscope frames,
@@ -55,10 +57,12 @@ trial_number_matches = trial_start_frames.shape[0] == (int(chipmunk_data['nTrial
 
 #%%------Check for dropped frames-----
 teensy_frames_collected = np.where(mscope_log[:,0] == 2)[0]
+#These are the frames that the miniscope DAQ acknowledges as recorded.
+
 teensy_frames = np.transpose(mscope_log[teensy_frames_collected,2])
 teensy_frames = teensy_frames - teensy_frames[0] #Zero the start
 
-miniscope_frames = mscope_time_stamps[:,1]
+miniscope_frames = mscope_time_stamps[:,1] #These are the frames have been received by the computer and written to the HD.
 miniscope_frames = miniscope_frames - miniscope_frames[0]
 
 num_dropped = teensy_frames.shape[0] - miniscope_frames.shape[0]
@@ -67,19 +71,21 @@ num_dropped = teensy_frames.shape[0] - miniscope_frames.shape[0]
 #%%-----match the teensy frames with the actually recorded ones and detect position of dropped
 
 average_interval = np.mean(np.diff(teensy_frames, axis = 0), axis = 0)
+#Determine th expected interval between the frames from the teensy output.
 
 teensy_cumulative_time = np.cumsum(teensy_frames) #Generate a continuous time line
 miniscope_cumulative_time = np.cumsum(miniscope_frames)
 
 acquired_frame_num = miniscope_frames.shape[0]
 clock_time_difference = miniscope_frames - teensy_frames[0:acquired_frame_num]
+#Map the frame times 1:1 here first to already reveal unexpected jumps in the time difference
 
 clock_sync_slope = (miniscope_frames[-1] - teensy_frames[-1])/acquired_frame_num
 #This variable is a rough estimate of the slope of the desync between the 
 # CPU clock and the teensy clock.
 intercept_term = 0 #This is expected to be 0 in the initial segment of the line
 
-# Generate line and subtrct from the data to obtain "rectified" version of the data
+# Generate line and subtract from the data to obtain "rectified" version of the data
 line_estimate = (np.arange(0,acquired_frame_num) - 1) * clock_sync_slope + intercept_term
 residuals = clock_time_difference - line_estimate
 

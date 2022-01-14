@@ -9,21 +9,34 @@ from scipy.io import loadmat
 import pandas as pd
 import numpy as np
 import random #To pick a random frame 
+from tkinter import Tk #For interactive selection, this part is only used to withdraw() the little selection window once the selection is done.
+import tkinter.filedialog as filedialog
+import glob #To pick files of a specified type
 
-#%%
+#%%---------Select session folder and get the required files--------------
+# Select the session directory
+Tk().withdraw() #Don't show the tiny confirmation window
+directory_name = filedialog.askdirectory()
 
-chipmunk_file_name = "C:/Users/Lukas Oesch/Documents/ChurchlandLab/TestDataChipmunk/TestMiniscopeAlignment/LO012/20210824_112833/chipmunk/LO012_chipmunk_DemonstratorVisTaskPaced_20210824_112833.mat"
+#Load first the alignment and the interpolated traces
+trial_alignment_files =  glob.glob(directory_name + '/trial_alignment/*.npz')
+for k in trial_alignment_files:
+    tmp_data = np.load(k)
+    for key,val in tmp_data.items(): #Retrieve all the entries and create variables with the respective name, here, C and S and the average #interval between frames, average_interval, which is 1/framerate.
+        exec(key + '=val')
 
-sesdata = loadmat(chipmunk_file_name, squeeze_me=True,
+chipmunk_file_name =  glob.glob(directory_name + '/chipmunk/*.mat')
+
+sesdata = loadmat(chipmunk_file_name[0], squeeze_me=True,
                           struct_as_record=True)['SessionData']
 
 #%%----Shamelessly stolen from spatial sparrow dj utils
 tmp = sesdata['RawEvents'].tolist()
 tmp = tmp['Trial'].tolist()
-uevents = np.unique(np.hstack([t['Events'].tolist().dtype.names for t in tmp]))
+uevents = np.unique(np.hstack([t['Events'].tolist().dtype.names for t in tmp])) #Make sure not to duplicate state definitions
 ustates = np.unique(np.hstack([t['States'].tolist().dtype.names for t in tmp]))
 trialevents = []
-trialstates = []
+trialstates = [] #Extract all trial states and events
 for t in tmp:
      a = {u:None for u in uevents}
      s = t['Events'].tolist()
@@ -42,9 +55,11 @@ trialdata = pd.merge(trialevents,trialstates,left_index=True, right_index=True)
 trial_start_frame_index = trial_start_frames[0:len(tmp)] #Because an incomplete trial is started
 trialdata.insert(0, 'trial_start_frame_index', trial_start_frame_index)
 
-#%%---------Some checking
+trialdata.insert(trialdata.shape[1], 'response_side', sesdata['ResponseSide'].tolist())
+#Add the response side of the animal to the end of the data frame
+#%%---------Some checking-----------------------------------------------------
 
-bpod_trial_dur = np.diff(np.array(sesdata['TrialStartTimestamp'].tolist()))
+bpod_trial_dur = np.diff(np.array(sesdata['TrialStartTimestamp'].tolist())) #The duration of the trial as recorded by Bpod
 approx_frame_time = np.zeros(len(trialdata)-1)
 for k in range(len(trialdata)-2):
     approx_frame_time[k] = (trialdata['trial_start_frame_index'][k+1] - trialdata['trial_start_frame_index'][k]) * (average_interval/1000)
@@ -93,12 +108,12 @@ S_rew_shuffled = np.zeros((window+1, len(rewarded), C.shape[0] ))
 tempC = np.empty((window+1, 1000)) #Represents all 1000 traces drawn with random center frame from one rewarded trial
 tempS = np.empty((window+1, 1000))
 
-for k in range(C.shape[0]-1):
-    for n in range(len(reward_delivery_frame)-1):
+for k in range(C.shape[0]-1): #k for all the cells
+    for n in range(len(reward_delivery_frame)-1): #n for all the rewards delivered
         C_rew[:,n,k] = C[k, int(reward_delivery_frame[n] - window/2) : int(reward_delivery_frame[n]  + window/2 + 1)]
         S_rew[:,n,k] = S[k, int(reward_delivery_frame[n] - window/2) : int(reward_delivery_frame[n]  + window/2 + 1)]
     
-        for q in range(1000):
+        for q in range(1000): #q for all the shuffles
             tempC[:,q] =  C[k, int(random_frame_matched[q,n] - window/2) : int(random_frame_matched[q,n]  + window/2 + 1)]
             tempS[:,q] =  S[k, int(random_frame_matched[q,n] - window/2) : int(random_frame_matched[q,n]  + window/2 + 1)]
         C_rew_shuffled[:,n,k] = np.mean(tempC, axis=1)
