@@ -13,9 +13,6 @@ import matplotlib.pyplot as plt
 import warnings #Throw warning for unmatched drops
 import os #To create a directory
 
-# Test 1
-
-
 #%%--------- Sort out the location of the files
 
 # Select the session directory
