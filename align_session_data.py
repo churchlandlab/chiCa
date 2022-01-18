@@ -26,6 +26,12 @@ mscope_log_file = glob.glob(directory_name + '/miniscope/*.mscopelog') #Use glob
 mscope_tStamps_file = directory_name + '/miniscope/timeStamps.csv'
 
 chipmunk_file = glob.glob(directory_name + '/chipmunk/*.mat')
+if len(chipmunk_file) == 0: #This is the case when it is an obsmat file, for instance
+    chipmunk_file = glob.glob(directory_name + '/chipmunk/*.obsmat')
+    if  len(chipmunk_file) == 0: #Not copied
+        print("It looks like the chipmunk behavior file has not yet been copied to this folder")
+        
+    
 camlog_file = glob.glob(directory_name + '/chipmunk/*.camlog')
 #%%--- all the loading here
 
@@ -90,19 +96,24 @@ residuals = clock_time_difference - line_estimate
 diff_residuals = np.diff(residuals,axis=0)
 
 #Find possible frame drop events
-candidate_drops = np.array(np.where(diff_residuals > average_interval))[0,:] #Mysteriously one gets a tuple of indices and zeros
+candidate_drops = [0] + np.array(np.where(diff_residuals > average_interval))[0,:].tolist() + [residuals.shape[0]] #Mysteriously one gets a tuple of indices and zeros
+#Turn into list and add the 0 in front and the teensy signal in the end to make looping easier.
 
 frame_drop_event = []
-window = 100
-#Go through the candidates and assign as an event if the following frames are all shifted more than one expected frame duration (with 10% safety margin)
-for k in candidate_drops:
-    if (np.mean(residuals[k+1:k + window]) - np.mean(residuals[k - window:k])) > (average_interval - (average_interval*0.1)):
-        frame_drop_event.append(k)
+last_frame_drop = 0 #Keep a pointer to the last frame drop that occured to iteratively lengthen the window to average over
+#Go through the candidates and assign as an event if the following frames are
+#all shifted more than one expected frame duration (with 20% safety margin).
+#Whenever a candidate event does not qualify as a frame drop merge the residuals
+#after that event into the current evaluation process.
+for k in range(1,len(candidate_drops)-1):
+    if  (np.mean(residuals[candidate_drops[k]+1:candidate_drops[k+1]]+1) - np.mean(residuals[last_frame_drop + 1:candidate_drops[k]]+1)) > (average_interval - (average_interval*0.2)):
+    #if (np.mean(residuals[k+1:k + window]) - np.mean(residuals[k - window:k])) > (average_interval - (average_interval*0.1)):
+        #Adding two here seeks to avoid some of the overshoot that can be seen when the computer is trying to catch up.
+        frame_drop_event.append(candidate_drops[k])
+        last_frame_drop = candidate_drops[k]
 
 #Estimate the number of frames dropped per 
-segments = list(frame_drop_event)
-segments.insert(0,0)
-segments.append(miniscope_frames.shape[0])
+segments = [0] + frame_drop_event + [residuals.shape[0]]
 
 dropped_per_event = [None] * len(frame_drop_event) #Estimated dropped frames per event
 rounding_error = [None] * len(frame_drop_event) #Estimates confidence in precise number of dropped
@@ -110,10 +121,10 @@ jump_size = [None] * len(frame_drop_event) #The estimated shift in time differen
 # and the miniscope log when a frame is dropped
 
 for k in range(len(frame_drop_event)):
-    jump_size = np.mean(residuals[segments[k+1]+1:segments[k+2]+1]) - np.mean(residuals[segments[k]+1:segments[k+1]+1])
+    jump_size[k] = np.mean(residuals[segments[k+1]+1:segments[k+2]+1]) - np.mean(residuals[segments[k]+1:segments[k+1]+1])
     
     #Divide the observed jump in the signal by the expected interval
-    approx_loss_per_event = jump_size / average_interval
+    approx_loss_per_event = jump_size[k] / average_interval
     dropped_per_event[k] = round(approx_loss_per_event)
     if dropped_per_event[k] > 0:
         rounding_error[k] = (dropped_per_event[k] - approx_loss_per_event)/dropped_per_event[k]
