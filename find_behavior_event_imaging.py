@@ -25,9 +25,13 @@ for k in trial_alignment_files:
     for key,val in tmp_data.items(): #Retrieve all the entries and create variables with the respective name, here, C and S and the average #interval between frames, average_interval, which is 1/framerate.
         exec(key + '=val')
 
-chipmunk_file_name =  glob.glob(directory_name + '/chipmunk/*.mat')
+chipmunk_file =  glob.glob(directory_name + '/chipmunk/*.mat')
+if len(chipmunk_file) == 0: #This is the case when it is an obsmat file, for instance
+    chipmunk_file = glob.glob(directory_name + '/chipmunk/*.obsmat')
+    if  len(chipmunk_file) == 0: #Not copied
+        print("It looks like the chipmunk behavior file has not yet been copied to this folder")
 
-sesdata = loadmat(chipmunk_file_name[0], squeeze_me=True,
+sesdata = loadmat(chipmunk_file[0], squeeze_me=True,
                           struct_as_record=True)['SessionData']
 
 #%%----Shamelessly stolen from spatial sparrow dj utils
@@ -70,6 +74,36 @@ unexpected_time_diff = time_difference[time_difference > average_interval/1000] 
 if unexpected_time_diff.shape[0]:
     print("There is a mismatch between the recorded trial duration \nand the expected time of trials from the imaging frames.")
 
+#%%----Extract the time stamps aligned to a certain task state
+
+def find_state_start_frame(state_name, trialdata, average_interval, trial_start_time_covered):
+    '''Locate the frame during which a certain state in the chipmunk task has
+    started. Requires state_name (string with the name of the state of interest)
+    trialdata (a pandas dataframe with the trial start frames
+    and the state timers) and average interval (the average frame interval as 
+    as recorded by teensy).'''
+    
+    state_start_frame = [None] * len(trialdata) #The frame that covers the start of
+    state_time_covered = np.zeros([len(trialdata)]) #The of the side that has been covered by the frame
+    
+    for n in range(len(trialdata)-1): #Subtract one here because the last trial is unfinished
+          if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
+              frame_time = np.arange(trial_start_time_covered[n]/1000, (trialdata["trial_start_frame_index"][n+1] - trialdata["trial_start_frame_index"][n]) * average_interval/1000,  average_interval/1000)
+              #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
+
+              tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
+              state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_frame_index"][n])
+              #np.where returns a tuple where the first element are the indices that fulfill the condition.
+              #Inside the array of indices retrieve the first one that is positive, therefore the first
+              #frame that caputres some information.
+         
+              state_time_covered[n] =  tmp[tmp > 0][0] #Retrieve the time that was covered by the frame
+          else:
+              state_start_frame[n] = np.nan
+              state_time_covered[n] = np.nan
+          
+    return state_start_frame, state_time_covered
+          
 #%%---Experimental align signals to reward delivery
 
 #First get rewarded trials
@@ -90,10 +124,10 @@ for n in range(len(rewarded)):
     #frame where some reward delivery information can be found and add to the trial start frame.
     #Add 1 because the first frame time denotes the frame 0 that has not yet acquired trial
     #information only.
-    for q in range(1000):
-        tmp = random.randrange(0, frame_time.shape[0])
-        random_frame_matched[q,n] = int(tmp + trialdata["trial_start_frame_index"][rewarded[n]] + 1)
-    #Draw 1000 random frames from the same trial, might also be the rewarded one!
+    # for q in range(1000):
+    #     tmp = random.randrange(0, frame_time.shape[0])
+    #     random_frame_matched[q,n] = int(tmp + trialdata["trial_start_frame_index"][rewarded[n]] + 1)
+    # #Draw 1000 random frames from the same trial, might also be the rewarded one!
 
 #Define the amount of data prior and after reward delivery to look at
 window = 40 #Look at the second before and after reward
@@ -102,22 +136,22 @@ C_rew = np.zeros((window+1, len(rewarded), C.shape[0] ))
 S_rew = np.zeros((window+1, len(rewarded), C.shape[0] ))
 
 
-C_rew_shuffled = np.zeros((window+1, len(rewarded), C.shape[0] ))
-S_rew_shuffled = np.zeros((window+1, len(rewarded), C.shape[0] ))
+# C_rew_shuffled = np.zeros((window+1, len(rewarded), C.shape[0] ))
+# S_rew_shuffled = np.zeros((window+1, len(rewarded), C.shape[0] ))
 
-tempC = np.empty((window+1, 1000)) #Represents all 1000 traces drawn with random center frame from one rewarded trial
-tempS = np.empty((window+1, 1000))
+# tempC = np.empty((window+1, 1000)) #Represents all 1000 traces drawn with random center frame from one rewarded trial
+# tempS = np.empty((window+1, 1000))
 
 for k in range(C.shape[0]-1): #k for all the cells
     for n in range(len(reward_delivery_frame)-1): #n for all the rewards delivered
         C_rew[:,n,k] = C[k, int(reward_delivery_frame[n] - window/2) : int(reward_delivery_frame[n]  + window/2 + 1)]
         S_rew[:,n,k] = S[k, int(reward_delivery_frame[n] - window/2) : int(reward_delivery_frame[n]  + window/2 + 1)]
     
-        for q in range(1000): #q for all the shuffles
-            tempC[:,q] =  C[k, int(random_frame_matched[q,n] - window/2) : int(random_frame_matched[q,n]  + window/2 + 1)]
-            tempS[:,q] =  S[k, int(random_frame_matched[q,n] - window/2) : int(random_frame_matched[q,n]  + window/2 + 1)]
-        C_rew_shuffled[:,n,k] = np.mean(tempC, axis=1)
-        S_rew_shuffled[:,n,k] = np.mean(tempS, axis=1)
+        # for q in range(1000): #q for all the shuffles
+        #     tempC[:,q] =  C[k, int(random_frame_matched[q,n] - window/2) : int(random_frame_matched[q,n]  + window/2 + 1)]
+        #     tempS[:,q] =  S[k, int(random_frame_matched[q,n] - window/2) : int(random_frame_matched[q,n]  + window/2 + 1)]
+        # C_rew_shuffled[:,n,k] = np.mean(tempC, axis=1)
+        # S_rew_shuffled[:,n,k] = np.mean(tempS, axis=1)
         
     print(f"Ran over cell number {k}")
         

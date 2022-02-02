@@ -33,6 +33,7 @@ if len(chipmunk_file) == 0: #This is the case when it is an obsmat file, for ins
         
     
 camlog_file = glob.glob(directory_name + '/chipmunk/*.camlog')
+
 #%%--- all the loading here
 
 mscope_log = np.loadtxt(mscope_log_file[0], delimiter = ',', skiprows = 2) #Make sure to skip over the header lines and use comma as delimiter
@@ -53,7 +54,8 @@ video_tracking =  np.loadtxt(camlog_file[0], delimiter = ',', skiprows = 6, comm
 trial_starts  = np.where(mscope_log[:,0] == 23) #Find all trial starts
 trial_start_frames = mscope_log[trial_starts[0]+1,1] #Set the frame just after
 # trial start as the start frame, the trial start takes place in the exposure time of the frame.
-
+trial_start_time_covered = mscope_log[trial_starts[0]+1,2] - mscope_log[trial_starts[0],2] 
+# Keep the trial time that was covered by the frame acquisition
 # Check whether the number of trials is as expected
 trial_number_matches = trial_start_frames.shape[0] == (int(chipmunk_data['nTrials']) + 1)
 # Adding one to the number of trials is necessary becuase nTrials measures completed trials
@@ -96,6 +98,7 @@ residuals = clock_time_difference - line_estimate
 diff_residuals = np.diff(residuals,axis=0)
 
 #Find possible frame drop events
+#candidate_drops = [0] + np.array(np.where(diff_residuals > 0.5*average_interval))[0,:].tolist() + [residuals.shape[0]] #Mysteriously one gets a tuple of indices and zeros
 candidate_drops = [0] + np.array(np.where(diff_residuals > average_interval))[0,:].tolist() + [residuals.shape[0]] #Mysteriously one gets a tuple of indices and zeros
 #Turn into list and add the 0 in front and the teensy signal in the end to make looping easier.
 
@@ -171,4 +174,5 @@ output_file = directory_name + "/trial_alignment/" + animalID + "_" + session_da
 np.savez(output_file, trial_start_frames = trial_start_frames, num_dropped = num_dropped,
         frame_drop_event = frame_drop_event, dropped_per_event = dropped_per_event,
         jump_size = jump_size, rounding_error = rounding_error, average_interval = average_interval,
-        acquired_frame_num = acquired_frame_num)
+        acquired_frame_num = acquired_frame_num,
+        trial_start_time_covered = trial_start_time_covered)
