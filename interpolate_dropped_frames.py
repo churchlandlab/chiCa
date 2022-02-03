@@ -34,28 +34,37 @@ alignment_directory = np.load(alignment_file[0]) #Fill in later
 for key,val in alignment_directory.items(): #Retrieve all the entries 
         exec(key + '=val')
 
-#%%-----Generate a vector with the time stamps matching the acquired frames (leaky)
-time_vect = np.arange(acquired_frame_num + num_dropped) #The actual recording length.
+#%%----Check whether frames were lost and interpolate if necessary
 
-leaky_time = np.array(time_vect) #initialize a copy where time stamps will be removed
-for k in range(len(frame_drop_event)): #Iteratively remove the missing timestamps 
-    if dropped_per_event[k] > 0:
-        leaky_time = np.delete(leaky_time, np.arange(frame_drop_event[k],frame_drop_event[k] + dropped_per_event[k]))
-        #Make sure to iterate to increasing indices, so that the correct position
-        #is found
+if num_dropped > 0: #The case with dropped frames
+    
+    #Generate a vector with the time stamps matching the acquired frames (leaky)
+    time_vect = np.arange(acquired_frame_num + num_dropped) #The actual recording length.
+
+    leaky_time = np.array(time_vect) #initialize a copy where time stamps will be removed
+    for k in range(len(frame_drop_event)): #Iteratively remove the missing timestamps 
+        if dropped_per_event[k] > 0:
+            leaky_time = np.delete(leaky_time, np.arange(frame_drop_event[k],frame_drop_event[k] + dropped_per_event[k]))
+            #Make sure to iterate to increasing indices, so that the correct position
+            #is found
         
-#%%----Calculate the cubic spline on the denoised calcium signal and apply a 
-#  ----linear interpolation to the deconvolved spiking activity    
+        #---Calculate the cubic spline on the denoised calcium signal and apply a 
+        #---linear interpolation to the deconvolved spiking activity    
 
-cubic_spline_interpolation = CubicSpline(leaky_time, C, axis=1)
-C_interpolated = cubic_spline_interpolation(time_vect)
+    cubic_spline_interpolation = CubicSpline(leaky_time, C, axis=1)
+    C_interpolated = cubic_spline_interpolation(time_vect)
 
-linear_interpolation = interp1d(leaky_time, S, axis=1)
-S_interpolated = linear_interpolation(time_vect)
+    linear_interpolation = interp1d(leaky_time, S, axis=1)
+    S_interpolated = linear_interpolation(time_vect)
+    
+else:
+    C_interpolated = C
+    S_interpolated = S
 
-#Save these two traces to a file inside the trial_alignment folder in this implementation
+#%%---Save these two traces to a file inside the trial_alignment folder in this implementation
 output_file = directory_name + "/trial_alignment/interpolated_calcium_traces.npz"
 np.savez(output_file, C_interpolated = C_interpolated, S_interpolated = S_interpolated)
+
 #%%----auxiliary visualization tools
 
 # look_at_before = leaky_time[(leaky_time > 11150) & (leaky_time < 11200)].tolist()
