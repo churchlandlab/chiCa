@@ -54,6 +54,17 @@ deMat = np.array(spMat.todense()) # fill the holes and transform to numpy array
 # Also, it is important to set the order of reshaping to 'F' (Fortran).
 A = deMat.reshape(image_dims[0], image_dims[1], neuron_num, order='F')
 
+#%% botched
+rewardDuration = [] #store and convert frame number from reward duration
+for i in np.arange(len(trialNum)):
+    rewardDuration.append(rewardOffset[i]-rewardOnset[i])
+rewardDuration = rewardDuration*average_interval    
+#%%
+startIDX = []
+endIDX = []
 
+for i in np.arange(len(trialNum)):
+    startIDX.append(startFrame[trialNum[i]]-average_interval*10)
+    endIDX.append(startFrame[trialNum[i]]+average_interval*10)
 
     
