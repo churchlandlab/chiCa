@@ -46,7 +46,7 @@ video_tracking =  np.loadtxt(camlog_file[0], delimiter = ',', skiprows = 6, comm
 #In the log file certain lines are preceded by #, meaning that these lines
 #comments that should be disregarded in the alignment.
 
-#%%-------Align trial start times
+#%%-------Align trial start times for the miniscope 
 # Remember that channel 23 is the Bpod input and channel 2 the miniscope frames,
 # first column is the channel number, second column the event number, third column
 # the teensy time stamp.
@@ -59,6 +59,37 @@ trial_start_time_covered = mscope_log[trial_starts[0]+1,2] - mscope_log[trial_st
 # Check whether the number of trials is as expected
 trial_number_matches = trial_start_frames.shape[0] == (int(chipmunk_data['nTrials']) + 1)
 # Adding one to the number of trials is necessary becuase nTrials measures completed trials
+
+#%%-----Find the trial starts on the video tracking 
+
+#Since the camera channels that record the trial TTL and the frame acquisition
+#are not defined we identify them based on their frequency of occurence
+channel_identifiers = list(set(video_tracking[:,2])) #Find unique channel identifiers (there should only be two!)
+if len(channel_identifiers) > 2:
+          warnings.warn("More than two TTL signals were detected on the camera log. Please check the log file.")
+          
+count_input_TTL = [0] * 2 
+count_input_TTL[0] = np.where(video_tracking[:,2]==channel_identifiers[0])[0].shape[0]
+#Very complicated term. Finds the occurences of the specified TTL isentity and accesses the 
+#the shape of the array where they are strored in within the tuple output from np.where.
+count_input_TTL[1] = np.where(video_tracking[:,2]==channel_identifiers[1])[0].shape[0]
+
+#Assign the TTL pulse identity to the camera or Bpod
+if count_input_TTL[0] > count_input_TTL[1]:
+    camera_channel = int(channel_identifiers[0])
+    trial_channel = int(channel_identifiers[1])
+else:
+    camera_channel = int(channel_identifiers[1])
+    trial_channel = int(channel_identifiers[0])  
+print(f"Aligning camera frames on channel {camera_channel} and trial TTLs on {trial_channel}")
+
+#Here a loop might be more readable
+trial_start_video_frame = []
+for k in range(video_tracking.shape[0]-1):
+    if video_tracking[k,2] == camera_channel and video_tracking[k+1,2] == trial_channel:
+        trial_start_video_frame.append(k)
+
+average_video_frame_interval = np.mean(np.diff(video_tracking[:,1]))
 
 #%%------Check for dropped frames-----
 teensy_frames_collected = np.where(mscope_log[:,0] == 2)[0]

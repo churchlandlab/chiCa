@@ -132,8 +132,8 @@ for n in range(len(rewarded)):
 #Define the amount of data prior and after reward delivery to look at
 window = 40 #Look at the second before and after reward
 
-C_rew = np.zeros((window+1, len(rewarded), C.shape[0] ))
-S_rew = np.zeros((window+1, len(rewarded), C.shape[0] ))
+C_rew = np.zeros((window+1, len(reward_delivery_frame), C.shape[0] ))
+S_rew = np.zeros((window+1, len(reward_delivery_frame), C.shape[0] ))
 
 
 # C_rew_shuffled = np.zeros((window+1, len(rewarded), C.shape[0] ))
