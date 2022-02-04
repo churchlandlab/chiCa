@@ -56,27 +56,40 @@ trialstates = pd.DataFrame(trialstates)
 trialevents = pd.DataFrame(trialevents)
 trialdata = pd.merge(trialevents,trialstates,left_index=True, right_index=True)
 
-trial_start_frame_index = trial_start_frames[0:len(tmp)] #Because an incomplete trial is started
-trialdata.insert(0, 'trial_start_frame_index', trial_start_frame_index)
-
 trialdata.insert(trialdata.shape[1], 'response_side', sesdata['ResponseSide'].tolist())
 #Add the response side of the animal to the end of the data frame
-#%%---------Some checking-----------------------------------------------------
+
+#Add the miniscope alignment parameters
+trialdata.insert(0, 'trial_start_frame_index', trial_start_frame_index[0:len(tmp)]) #Exclude the last trial that has not been completed.
+trialdata.insert(1, 'trial_start_time_covered', trial_start_time_covered[0:len(tmp)])
+
+#Add alignment for the video tracking
+trialdata.insert(2, 'trial_start_video_frame_index', trial_start_video_frame[0:len(tmp)])
+
+#%%------Check how much the recorded trial duration and the trial duration 
+#        reconstructed from the imaging or video frame indicies deviate. If the
+#        are more than one frame apart inform the user about the mismatch.
 
 bpod_trial_dur = np.diff(np.array(sesdata['TrialStartTimestamp'].tolist())) #The duration of the trial as recorded by Bpod
-approx_frame_time = np.zeros(len(trialdata)-1)
+approx_imaging_frame_time = np.zeros(len(trialdata)-1)
+approx_video_frame_time = np.zeros(len(trialdata)-1)
 for k in range(len(trialdata)-2):
-    approx_frame_time[k] = (trialdata['trial_start_frame_index'][k+1] - trialdata['trial_start_frame_index'][k]) * (average_interval/1000)
+    approx_imaging_frame_time[k] = (trialdata['trial_start_frame_index'][k+1] - trialdata['trial_start_frame_index'][k]) * (average_interval/1000)
+    approx_video_frame_time[k] = (trialdata['trial_start_video_frame_index'][k+1] - trialdata['trial_start_video_frame_index'][k]) * average_video_frame_interval
     
-    
-time_difference = approx_frame_time - bpod_trial_dur
-unexpected_time_diff = time_difference[time_difference > average_interval/1000] #Average interval is in ms
-if unexpected_time_diff.shape[0]:
+imaging_time_difference = approx_imaging_frame_time - bpod_trial_dur
+unexpected_imaging_time_diff = imaging_time_difference[imaging_time_difference > average_interval/1000] #Average interval is in ms
+if unexpected_imaging_time_diff.shape[0]:
     print("There is a mismatch between the recorded trial duration \nand the expected time of trials from the imaging frames.")
+
+video_time_difference = approx_video_frame_time - bpod_trial_dur
+unexpected_video_time_diff = video_time_difference[video_time_difference > average_video_frame_interval] #Average interval is in ms
+if unexpected_video_time_diff.shape[0]:
+    print("Trial duration and reconstructed video frame time mismatch.\nChekc video alignment")
 
 #%%----Extract the time stamps aligned to a certain task state
 
-def find_state_start_frame(state_name, trialdata, average_interval, trial_start_time_covered):
+def find_state_start_frame_imaging(state_name, trialdata, average_interval, trial_start_time_covered):
     '''Locate the frame during which a certain state in the chipmunk task has
     started. Requires state_name (string with the name of the state of interest)
     trialdata (a pandas dataframe with the trial start frames
@@ -86,11 +99,11 @@ def find_state_start_frame(state_name, trialdata, average_interval, trial_start_
     state_start_frame = [None] * len(trialdata) #The frame that covers the start of
     state_time_covered = np.zeros([len(trialdata)]) #The of the side that has been covered by the frame
     
-    for n in range(len(trialdata)-1): #Subtract one here because the last trial is unfinished
+    for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
           if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
-              frame_time = np.arange(trial_start_time_covered[n]/1000, (trialdata["trial_start_frame_index"][n+1] - trialdata["trial_start_frame_index"][n]) * average_interval/1000,  average_interval/1000)
+              frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
               #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
-
+              
               tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
               state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_frame_index"][n])
               #np.where returns a tuple where the first element are the indices that fulfill the condition.
@@ -104,6 +117,36 @@ def find_state_start_frame(state_name, trialdata, average_interval, trial_start_
           
     return state_start_frame, state_time_covered
           
+
+#%%--------Extract time stamps aligned to a defined task state for video tracking
+
+def find_state_start_frame_video(state_name, trialdata, average_video_frame_interval):
+    '''Locate the frame during which a certain state in the chipmunk task has
+    started. Requires state_name (string with the name of the state of interest)
+    trialdata (a pandas dataframe with the trial start frames
+    and the state timers) and average_video_frame_interval (the average frame interval as 
+    as recorded by the FLIR camera, in s).'''
+    
+    state_start_video_frame = [None] * len(trialdata) #The frame that covers the start of
+    
+    for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
+          if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
+              frame_time = np.arange(average_video_frame_interval, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_video_frame_interval)
+              #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
+
+              tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
+              state_start_video_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_video_frame_index"][n])
+              #np.where returns a tuple where the first element are the indices that fulfill the condition.
+              #Inside the array of indices retrieve the first one that is positive, therefore the first
+              #frame that caputres some information.
+         
+          else:
+              state_start_video_frame[n] = np.nan
+
+    return state_start_video_frame
+          
+
+
 #%%---Experimental align signals to reward delivery
 
 #First get rewarded trials

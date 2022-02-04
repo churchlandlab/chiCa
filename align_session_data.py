@@ -42,9 +42,15 @@ mscope_time_stamps = np.loadtxt(mscope_tStamps_file, delimiter = ',', skiprows =
 temp = loadmat(chipmunk_file[0], squeeze_me=True, struct_as_record=True) #Load the behavioral data file 
 chipmunk_data = temp['SessionData']
 
-video_tracking =  np.loadtxt(camlog_file[0], delimiter = ',', skiprows = 6, comments='#')
-#In the log file certain lines are preceded by #, meaning that these lines
-#comments that should be disregarded in the alignment.
+video_tracking = []
+camera_name = []
+for k in camlog_file:
+    video_tracking.append(np.loadtxt(k, delimiter = ',', skiprows = 6, comments='#'))
+    #In the log file certain lines are preceded by #, meaning that these lines
+    #comments that should be disregarded in the alignment.
+    with open(k) as f:
+        first_line = f.readline() #Read the first line only to retrieve the camera 
+    camera_name.append(str.split(first_line, sep=' ')[2])
 
 #%%-------Align trial start times for the miniscope 
 # Remember that channel 23 is the Bpod input and channel 2 the miniscope frames,
@@ -62,34 +68,40 @@ trial_number_matches = trial_start_frames.shape[0] == (int(chipmunk_data['nTrial
 
 #%%-----Find the trial starts on the video tracking 
 
-#Since the camera channels that record the trial TTL and the frame acquisition
-#are not defined we identify them based on their frequency of occurence
-channel_identifiers = list(set(video_tracking[:,2])) #Find unique channel identifiers (there should only be two!)
-if len(channel_identifiers) > 2:
+trial_start_video_frame = [] #The frames that captured the start of a trial
+average_video_frame_interval = []#The average interval between the frames 
+
+for n in range(len(video_tracking)):
+    #Since the camera channels that record the trial TTL and the frame acquisition
+    #are not defined we identify them based on their frequency of occurence
+    channel_identifiers = list(set(video_tracking[n][:,2])) #Find unique channel identifiers (there should only be two!)
+    if len(channel_identifiers) > 2:
           warnings.warn("More than two TTL signals were detected on the camera log. Please check the log file.")
           
-count_input_TTL = [0] * 2 
-count_input_TTL[0] = np.where(video_tracking[:,2]==channel_identifiers[0])[0].shape[0]
-#Very complicated term. Finds the occurences of the specified TTL isentity and accesses the 
-#the shape of the array where they are strored in within the tuple output from np.where.
-count_input_TTL[1] = np.where(video_tracking[:,2]==channel_identifiers[1])[0].shape[0]
+    count_input_TTL = [0] * 2 
+    count_input_TTL[0] = np.where(video_tracking[n][:,2]==channel_identifiers[0])[0].shape[0]
+    #Very complicated term. Finds the occurences of the specified TTL isentity and accesses the 
+    #the shape of the array where they are strored in within the tuple output from np.where.
+    count_input_TTL[1] = np.where(video_tracking[n][:,2]==channel_identifiers[1])[0].shape[0]
 
-#Assign the TTL pulse identity to the camera or Bpod
-if count_input_TTL[0] > count_input_TTL[1]:
-    camera_channel = int(channel_identifiers[0])
-    trial_channel = int(channel_identifiers[1])
-else:
-    camera_channel = int(channel_identifiers[1])
-    trial_channel = int(channel_identifiers[0])  
-print(f"Aligning camera frames on channel {camera_channel} and trial TTLs on {trial_channel}")
+    #Assign the TTL pulse identity to the camera or Bpod
+    if count_input_TTL[0] > count_input_TTL[1]:
+       camera_channel = int(channel_identifiers[0])
+       trial_channel = int(channel_identifiers[1])
+    else:
+        camera_channel = int(channel_identifiers[1])
+        trial_channel = int(channel_identifiers[0])  
+    print(f"Aligning camera {camera_name[n]} frames on channel {camera_channel} and trial TTLs on {trial_channel}")
 
-#Here a loop might be more readable
-trial_start_video_frame = []
-for k in range(video_tracking.shape[0]-1):
-    if video_tracking[k,2] == camera_channel and video_tracking[k+1,2] == trial_channel:
-        trial_start_video_frame.append(k)
+    #Here a loop might be more readable
+    trial_start = []
+    for k in range(video_tracking[n].shape[0]-1):
+        if video_tracking[n][k,2] == camera_channel and video_tracking[n][k+1,2] == trial_channel:
+            trial_start.append(k)
 
-average_video_frame_interval = np.mean(np.diff(video_tracking[:,1]))
+    #Append the existing lists for these variables
+    trial_start_video_frame.append(trial_start)
+    average_video_frame_interval.append(np.mean(np.diff(video_tracking[n][:,1])))
 
 #%%------Check for dropped frames-----
 teensy_frames_collected = np.where(mscope_log[:,0] == 2)[0]
@@ -206,4 +218,5 @@ np.savez(output_file, trial_start_frames = trial_start_frames, num_dropped = num
         frame_drop_event = frame_drop_event, dropped_per_event = dropped_per_event,
         jump_size = jump_size, rounding_error = rounding_error, average_interval = average_interval,
         acquired_frame_num = acquired_frame_num,
-        trial_start_time_covered = trial_start_time_covered)
+        trial_start_time_covered = trial_start_time_covered, trial_start_video_frame = trial_start_video_frame,
+        average_video_frame_interval = average_video_frame_interval)
