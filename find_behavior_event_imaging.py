@@ -140,7 +140,7 @@ def find_state_start_frame_video(state_name, trialdata, average_video_frame_inte
               #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
 
               tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
-              state_start_video_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata[camera_of_interest + "_trial_start_index"][n])
+              state_start_video_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata[camera_name + "_trial_start_index"][n])
               #np.where returns a tuple where the first element are the indices that fulfill the condition.
               #Inside the array of indices retrieve the first one that is positive, therefore the first
               #frame that caputres some information.
