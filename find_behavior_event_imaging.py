@@ -64,7 +64,8 @@ trialdata.insert(0, 'trial_start_frame_index', trial_start_frame_index[0:len(tmp
 trialdata.insert(1, 'trial_start_time_covered', trial_start_time_covered[0:len(tmp)])
 
 #Add alignment for the video tracking
-trialdata.insert(2, 'trial_start_video_frame_index', trial_start_video_frame[0:len(tmp)])
+for n in range(len(trial_start_video_frame)):
+    trialdata.insert(2, camera_name[n]+ '_trial_start_index', trial_start_video_frame[n][0:len(tmp)])
 
 #%%------Check how much the recorded trial duration and the trial duration 
 #        reconstructed from the imaging or video frame indicies deviate. If the
@@ -120,12 +121,16 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
 
 #%%--------Extract time stamps aligned to a defined task state for video tracking
 
-def find_state_start_frame_video(state_name, trialdata, average_video_frame_interval):
+def find_state_start_frame_video(state_name, trialdata, average_video_frame_interval, camera_name):
     '''Locate the frame during which a certain state in the chipmunk task has
     started. Requires state_name (string with the name of the state of interest)
     trialdata (a pandas dataframe with the trial start frames
-    and the state timers) and average_video_frame_interval (the average frame interval as 
-    as recorded by the FLIR camera, in s).'''
+    and the state timers), average_video_frame_interval (the average frame interval as 
+    as recorded by the FLIR camera of interest, in s and the name of the respective camera).
+    Usage example:
+    state_start_video_frame = find_state_start_frame_video(state_name, trialdata, average_video_frame_interval, camera_name)
+    '''
+    
     
     state_start_video_frame = [None] * len(trialdata) #The frame that covers the start of
     
@@ -135,7 +140,7 @@ def find_state_start_frame_video(state_name, trialdata, average_video_frame_inte
               #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
 
               tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
-              state_start_video_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_video_frame_index"][n])
+              state_start_video_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata[camera_of_interest + "_trial_start_index"][n])
               #np.where returns a tuple where the first element are the indices that fulfill the condition.
               #Inside the array of indices retrieve the first one that is positive, therefore the first
               #frame that caputres some information.

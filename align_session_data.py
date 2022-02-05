@@ -99,6 +99,9 @@ for n in range(len(video_tracking)):
         if video_tracking[n][k,2] == camera_channel and video_tracking[n][k+1,2] == trial_channel:
             trial_start.append(k)
 
+####-----TO BE FIXED: In sessions acquired currently from Pine, Spruce and Cypress
+#                     the first trial start signal is lost on the log file.
+#                     Do the cameras start too late?
     #Append the existing lists for these variables
     trial_start_video_frame.append(trial_start)
     average_video_frame_interval.append(np.mean(np.diff(video_tracking[n][:,1])))
