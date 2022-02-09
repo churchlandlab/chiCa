@@ -1,22 +1,3 @@
-import numpy as np
-import pandas as pd
-from scipy import stats
-from pathlib import Path
-import matplotlib.pyplot as plt
-import math
-#%%
-dataFrame=pd.read_hdf("C:/Users/Letizia/Desktop/LY Scripts/Chipmunk Scripts/trialdata_20210825_164317.h5","/Data")
-print(dataFrame.columns)
-#%%
-calcium_traces_file = np.load("C:/Users/Letizia/Desktop/LY Scripts/Chipmunk Scripts/20210825_164317/calcium_traces_interpolated.npz") #This will create an npz file object
-for key,val in calcium_traces_file.items(): #Retrieve all the entries and create variables with the respective name, here, C and S and the average #interval between frames, average_interval, which is 1/framerate.
-
-        exec(key + '=val')
-#%%
-#Z-Score data and calculate average trace
-
-zScoreC = stats.zscore(C)
-avgTrace = zScoreC.mean(0)
 #%% From Lukas' script to find start frames, modified
 def find_state_start_frame(state_name, trialdata, average_interval, trial_start_time_covered):
     '''Locate the frame during which a certain state in the chipmunk task has
@@ -54,14 +35,4 @@ for eventName in dataFrame.columns[9:-1]:
     for i in range(0,len(tempOnset)):
         tempIDX.append(temp.index(tempOnset[i]))
     
-    exec(eventName + 'Onset=[list(x) for x in zip(tempIDX, tempOnset)]')
-#%%
-for eventName in dataFrame.columns[0:9]:
-
-    temp=find_state_start_frame(eventName, dataFrame, average_interval, dataFrame['trial_start_time_covered'])[0]  
-    tempOnset = [x for x in temp if pd.isnull(x) == False]
-    tempIDX=[]
-    for i in range(0,len(tempOnset)):
-        tempIDX.append(temp.index(tempOnset[i]))
-    
-    exec(eventName + 'Onset=[list(x) for x in zip(tempIDX, tempOnset)]')
+    exec(eventName + 'Onset=list(zip(tempIDX, tempOnset))')

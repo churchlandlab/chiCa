@@ -39,38 +39,7 @@ for i in range(len(rewardOnsetFrame)):
     frameDiff.append(rewardOnsetFrameCorrected[i]-rewardOnsetFrame[i])
     
 print(frameDiff)
-#%%
-window=1/(average_interval/1000) #define event window
-
-avgTrace=np.zeros((len(zScoreC), math.floor(window*2)))
-eventTrace=[]
-
-for i in range(len(zScoreC)): #for every cell
-    eventTrace=np.zeros((len(rewardTrialData), math.floor(window*2)))
-    
-    for j in range(len(rewardTrialData)): #for every event
-        
-        startIDX=int(rewardOnsetFrame[j]-window) #startIDX is 20s behind the center
-        endIDX=int(rewardOnsetFrame[j]+window) #endIDX is 20s after center
-        
-        tempTrace=zScoreC[i][startIDX:endIDX]
-        
-        if len(tempTrace) == math.floor(window*2):            
-            eventTrace[j,:]=tempTrace
-        else:
-            eventTrace[j,:]=tempTrace[:math.floor(window*2)]
-    
-    avgTrace[i,:]=eventTrace.mean(0)     
-
-#%%
-plt.figure()
-sortedAvg=avgTrace[avgTrace[:, 0].argsort()]
-plt.imshow(sortedAvg[::-1], aspect='auto')
-plt.axvline(x = window, color='w', linestyle='--', linewidth=0.5)
-
-plt.xlabel('Frame #')
-plt.ylabel('Neuron #')
-plt.title('Reward Triggered Average (Sorted by Most Active Cells)')
+   
 
 #%% plot trial x reward event trace heatmap for individual neurons
 window=1/(average_interval/1000) #define event window

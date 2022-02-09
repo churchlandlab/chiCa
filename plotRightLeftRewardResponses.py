@@ -1,16 +1,3 @@
-#%% compare reward cell profiles
-
-sideChoice=csvData["response_side"]
-rightChoice=[]
-leftChoice=[]
-for i in rewardTrialIDX:
-    if sideChoice[i] == 0.0:
-        rightChoice.append(rewardTrialIDX.index(i))
-    if sideChoice[i] == 1.0:
-        leftChoice.append(rewardTrialIDX.index(i))
-
-print(rightChoice)
-print(leftChoice)
 
 #%%
 window=2/(average_interval/1000) #define event window

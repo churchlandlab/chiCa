@@ -1,19 +1,19 @@
 from sklearn.metrics import roc_curve
 from sklearn.metrics import auc
 #%%create binary vector for reward delivery
-rewardVector=[0] * zScoreC.shape[1]
-windowSize=int(1/(average_interval/1000))
+binaryRewardVector=[0] * zScoreC.shape[1]
+windowSize=int(0.5/(average_interval/1000))
 
-for i in range(len(rewardOnsetFrame)):
-    rewardVector[int(rewardOnsetFrame[i]):int(rewardOnsetFrame[i]+windowSize)] = [1] * windowSize
+for i in range(len(DemonRewardOnset)):
+    binaryRewardVector[int(DemonRewardOnset[i][1]):int(DemonRewardOnset[i][1]+windowSize)] = [1] * windowSize
 
 plt.figure()    
-plt.plot(rewardVector) #plotting for sanity check
+plt.plot(binaryRewardVector) #plotting for sanity check
 #%% Compute fpr, tpr, thresholds and roc auc for every cell
 auROCScore=[]
 neuronNum=[]
 for i in range(len(zScoreC)):
-    fpr, tpr, thresholds = roc_curve(rewardVector, zScoreC[i])
+    fpr, tpr, thresholds = roc_curve(binaryRewardVector, zScoreC[i])
     roc_auc = auc(fpr, tpr)
     auROCScore.append(roc_auc)
     neuronNum.append(i)
@@ -29,9 +29,9 @@ inhCell=sortedROCindices[-1]
 #%% plot a sample cell
 
 
-fpr1, tpr1, thresholds = roc_curve(rewardVector, zScoreC[excCell])
+fpr1, tpr1, thresholds = roc_curve(binaryRewardVector, zScoreC[excCell])
 roc_auc1 = auc(fpr1, tpr1)
-fpr2, tpr2, thresholds = roc_curve(rewardVector, zScoreC[inhCell])
+fpr2, tpr2, thresholds = roc_curve(binaryRewardVector, zScoreC[inhCell])
 roc_auc2 = auc(fpr2, tpr2)
 
 plt.figure()
