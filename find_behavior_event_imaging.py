@@ -60,7 +60,7 @@ trialdata.insert(trialdata.shape[1], 'response_side', sesdata['ResponseSide'].to
 #Add the response side of the animal to the end of the data frame
 
 #Add the miniscope alignment parameters
-trialdata.insert(0, 'trial_start_frame_index', trial_start_frame_index[0:len(tmp)]) #Exclude the last trial that has not been completed.
+trialdata.insert(0, 'trial_start_frame_index', trial_start_frames[0:len(tmp)]) #Exclude the last trial that has not been completed.
 trialdata.insert(1, 'trial_start_time_covered', trial_start_time_covered[0:len(tmp)])
 
 #Add alignment for the video tracking
