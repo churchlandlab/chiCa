@@ -2,7 +2,7 @@ from sklearn.metrics import roc_curve
 from sklearn.metrics import auc
 #%%create binary vector for reward delivery
 binaryRewardVector=[0] * zScoreC.shape[1]
-windowSize=int(0.5/(average_interval/1000))
+windowSize=int(1/(average_interval/1000))
 
 for i in range(len(DemonRewardOnset)):
     binaryRewardVector[int(DemonRewardOnset[i][1]):int(DemonRewardOnset[i][1]+windowSize)] = [1] * windowSize
@@ -42,7 +42,7 @@ plt.xlim([0.0, 1.0])
 plt.ylim([0.0, 1.0])
 plt.xlabel('FPR')
 plt.ylabel('TPR')
-plt.title('Sample Neuron ROC Curve')
+plt.title('ROC Curve for Most and Least Reward-Selective Cells')
 plt.legend(loc="lower right")
 #%%
 plt.figure()

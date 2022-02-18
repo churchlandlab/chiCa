@@ -15,7 +15,7 @@ import statistics
 
 #%%------Define the import function
 
-data_source=  "C:/Users/letiz/Desktop/Test/secondRound.hdf5"
+data_source= "C:/Users/Letizia/Desktop/LY Scripts/Chipmunk Scripts/sessiondata_20220209_153012.hdf5"
     
 #%%---Extract the variables of interest
 
