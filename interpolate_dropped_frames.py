@@ -30,9 +30,10 @@ alignment_file = glob.glob(directory_name + '/trial_alignment/*.npz')
 #In this implementation we create a separate folder to hold the alignment information,
 #we can therefore look for the npz file in this folder. Later in datajoint we might just pull down the fed in data
 
-alignment_directory = np.load(alignment_file[0]) #Fill in later
-for key,val in alignment_directory.items(): #Retrieve all the entries 
-        exec(key + '=val')
+for s in range(len(alignment_file)):
+    alignment_directory = np.load(alignment_file[s]) #Fill in later
+    for key,val in alignment_directory.items(): #Retrieve all the entries 
+           exec(key + '=val')
 
 #%%----Check whether frames were lost and interpolate if necessary
 
@@ -56,6 +57,8 @@ if num_dropped > 0: #The case with dropped frames
 
     linear_interpolation = interp1d(leaky_time, S, axis=1)
     S_interpolated = linear_interpolation(time_vect)
+    
+    print(f'Successfully interpolated {num_dropped} dropped frames')
     
 else:
     C_interpolated = C

@@ -56,8 +56,40 @@ trialstates = pd.DataFrame(trialstates)
 trialevents = pd.DataFrame(trialevents)
 trialdata = pd.merge(trialevents,trialstates,left_index=True, right_index=True)
 
+#Add response and stimulus train related information: correct side, rate, event occurence time stamps
 trialdata.insert(trialdata.shape[1], 'response_side', sesdata['ResponseSide'].tolist())
-#Add the response side of the animal to the end of the data frame
+trialdata.insert(trialdata.shape[1], 'correct_side', sesdata['CorrectSide'].tolist())
+
+#Get stim modality$
+tmp_modality_numeric = sesdata['Modality'].tolist()
+temp_modality = []
+for t in tmp_modality_numeric:
+    if t == 1:
+        temp_modality.append('visual')
+    elif t == 2: 
+        temp_modality.append('auditory')
+    elif t == 3:
+        temp_modality.append('audio-visual')
+    else: 
+        temp_modality.append(np.nan)
+        print('Could not determine modality and set value to nan')
+        
+trialdata.insert(trialdata.shape[1], 'stimulus_modality', temp_modality)
+
+#Reconstruct the time stamps for the individual stimuli
+event_times = []
+event_duration = sesdata['StimulusDuration'].tolist()[0]
+for t in range(trialdata.shape[0]):
+    temp_isi = sesdata['InterStimulusIntervalList'].tolist().tolist()[t][tmp_modality_numeric[t]-1]
+    #Index into the corresponding trial and find the isi for the corresponding modality
+    
+    temp_trial_event_times = [temp_isi[0]] 
+    for k in range(1,temp_isi.shape[0]-1): #Start at 1 because the first Isi is already the timestamp after the play stimulus
+        temp_trial_event_times.append(temp_trial_event_times[k-1] + event_duration + temp_isi[k])
+
+    event_times.append(temp_trial_event_times + trialdata['PlayStimulus'][t][0]) #Add the timestamp for play stimulus to the event time
+
+trialdata.insert(trialdata.shape[1], 'stimulus_event_timestamps', event_times)
 
 #Add the miniscope alignment parameters
 trialdata.insert(0, 'trial_start_frame_index', trial_start_frames[0:len(tmp)]) #Exclude the last trial that has not been completed.
