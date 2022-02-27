@@ -12,6 +12,7 @@ import random #To pick a random frame
 from tkinter import Tk #For interactive selection, this part is only used to withdraw() the little selection window once the selection is done.
 import tkinter.filedialog as filedialog
 import glob #To pick files of a specified type
+from os import path
 
 #%%---------Select session folder and get the required files--------------
 # Select the session directory
@@ -98,6 +99,14 @@ trialdata.insert(1, 'trial_start_time_covered', trial_start_time_covered[0:len(t
 #Add alignment for the video tracking
 for n in range(len(trial_start_video_frame)):
     trialdata.insert(2, camera_name[n]+ '_trial_start_index', trial_start_video_frame[n][0:len(tmp)])
+
+#%%--------Save the trialdata to an hdf file in trial_alignment
+
+directory_parts = directory_name.split(sep = '/')
+levels = len(directory_parts)
+#This split is save because the directory name retrieved from tkinter's
+#askoepndirectory.name is an absolute path that is the same for Win and Linux
+trialdata.to_hdf(path.join(directory_name, 'trial_alignment', directory_parts[levels-2] + '_' + directory_parts[levels-1] + '_trialdata' ), '/Data'  )
 
 #%%------Check how much the recorded trial duration and the trial duration 
 #        reconstructed from the imaging or video frame indicies deviate. If the
