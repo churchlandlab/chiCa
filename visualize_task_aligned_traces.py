@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+Script to plot calcium signal aligned to selected task events inside a GUI that
+allows the user to jump between different neurons.
+Make sure to load the trial dataframe as trialdata, the calcium traces as 
+signal, the average_interval between the frames of the corresponding imaging
+session as average_interval and a desired ploting window in seconds as window
+into your workspace
+
 Created on Fri Feb 25 10:55:11 2022
 
 @author: Lukas Oesch
