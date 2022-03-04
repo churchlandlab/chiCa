@@ -106,7 +106,7 @@ directory_parts = directory_name.split(sep = '/')
 levels = len(directory_parts)
 #This split is save because the directory name retrieved from tkinter's
 #askoepndirectory.name is an absolute path that is the same for Win and Linux
-trialdata.to_hdf(path.join(directory_name, 'trial_alignment', directory_parts[levels-2] + '_' + directory_parts[levels-1] + '_trialdata' ), '/Data'  )
+trialdata.to_hdf(path.join(directory_name, 'trial_alignment', directory_parts[levels-2] + '_' + directory_parts[levels-1] + '_trialdata.h5' ), '/Data'  )
 
 #%%------Check how much the recorded trial duration and the trial duration 
 #        reconstructed from the imaging or video frame indicies deviate. If the
