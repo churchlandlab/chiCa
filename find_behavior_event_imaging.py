@@ -143,9 +143,13 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
     
     for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
           if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
-              frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
-              #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
-              
+              try:    
+                  frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
+                  #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
+              except:
+                  frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['ObsInitFixation'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
+                  #If this is the previous implementation of chipmunk
+                  
               tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
               state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_frame_index"][n])
               #np.where returns a tuple where the first element are the indices that fulfill the condition.
@@ -177,9 +181,13 @@ def find_state_start_frame_video(state_name, trialdata, average_video_frame_inte
     
     for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
           if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
-              frame_time = np.arange(average_video_frame_interval, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_video_frame_interval)
-              #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
-
+              try:    
+                  frame_time = np.arange(average_video_frame_interval, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_video_frame_interval)
+                  #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
+              except:
+                  frame_time = np.arange(average_video_frame_interval, trialdata['ObsInitFixation'][n][0] - trialdata['Sync'][n][0], average_video_frame_interval)
+                  #If this is the previous implementation of chipmunk
+                  
               tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
               state_start_video_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata[camera_name + "_trial_start_index"][n])
               #np.where returns a tuple where the first element are the indices that fulfill the condition.
