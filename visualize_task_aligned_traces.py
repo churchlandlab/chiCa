@@ -90,7 +90,7 @@ def state_time_stamps(state_name, trialdata, average_interval):
                   frame_time = np.arange(trialdata['trial_start_time_covered'][n]/1000, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
                   #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
               except:
-                   frame_time = np.arange(['trial_start_time_covered'][n]/1000, trialdata['FinishTrial'][n][0] - trialdata['ObsInitFixation'][n][0], average_interval/1000)
+                   frame_time = np.arange(trialdata['trial_start_time_covered'][n]/1000, trialdata['FinishTrial'][n][0] - trialdata['ObsTrialStart'][n][0], average_interval/1000)
                    #This is to fit in the previous implementation of chipmunk
               tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
               state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_frame_index"][n])
