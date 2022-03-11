@@ -174,7 +174,8 @@ def figure_updater(fig_handle, data_axes, lines_on_plots, signal, trialdata, ave
        the figure. The states that are plotted are set inside this function 
        currently but may be passed in a later version.'''
        
-    consider_states = ['DemonInitFixation', 'stimulus_event_timestamps', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
+    #consider_states = ['DemonInitFixation', 'stimulus_event_timestamps', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
+    consider_states = ['DemonInitFixation', 'PlayStimulus', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
     label_states = ['Start center fixation', 'First stimulus event', 'Movement onset', 'Reward', 'Punishment']
     # for m,(cstates, lines, d_axes) in enumerate(zip(consider_states, lines_on_plots,  data_axes)):
     #     state_start_frame = state_time_stamps(cstates, trialdata, average_interval)
@@ -188,43 +189,43 @@ def figure_updater(fig_handle, data_axes, lines_on_plots, signal, trialdata, ave
         aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
         lines_on_plots[m] = plot_signal(data_axes[m], lines_on_plots[m], aligned_signal, x_vect, np.array(trialdata['response_side']), ['Right choice', 'Left choice'])
     
-    # #Plot the data for the second row where the grouping variable is stimulus category
-    # for m in range(5):
-    #     state_start_frame = state_time_stamps(consider_states[m], trialdata, average_interval)
-    #     aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
-    #     lines_on_plots[5+m] = plot_signal(data_axes[5+m], lines_on_plots[5+m], aligned_signal, x_vect, np.array(trialdata['correct_side']), ['Right side correct', 'Left side correct'])
+    #Plot the data for the second row where the grouping variable is stimulus category
+    for m in range(5):
+        state_start_frame = state_time_stamps(consider_states[m], trialdata, average_interval)
+        aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
+        lines_on_plots[5+m] = plot_signal(data_axes[5+m], lines_on_plots[5+m], aligned_signal, x_vect, np.array(trialdata['correct_side']), ['Right side correct', 'Left side correct'])
     
     #Plot the data for the third row with previous choice as the distinctive group
     for m in range(5):
         state_start_frame = state_time_stamps(consider_states[m], trialdata, average_interval)
         aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
         prior_choice =  determine_prior_variable(np.array(trialdata['response_side']))
-        lines_on_plots[5+m] = plot_signal(data_axes[5+m], lines_on_plots[5+m], aligned_signal, x_vect, prior_choice,['Right choice on last trial', 'Left choice on last trial'])
+        lines_on_plots[10+m] = plot_signal(data_axes[10+m], lines_on_plots[10+m], aligned_signal, x_vect, prior_choice,['Right choice on last trial', 'Left choice on last trial'])
     
-    #This is the funky stuff
-    for m in range(5):
-        state_start_frame = state_time_stamps(consider_states[m], trialdata, average_interval)
-        aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
-        right_if_right_chosen = np.array((trialdata['response_side']== 1) & (trialdata['correct_side']==1), dtype=float) #Use float because nan is represented as float
-        right_if_right_chosen[trialdata['response_side'] != 1] = np.nan
-        lines_on_plots[10+m] = plot_signal(data_axes[10+m], lines_on_plots[10+m], aligned_signal, x_vect, right_if_right_chosen, ['Should go right, goes right', 'Should go left, goes right'])
-    
-    for m in range(5):
-        state_start_frame = state_time_stamps(consider_states[m], trialdata, average_interval)
-        aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
-        right_if_left_chosen = np.array((trialdata['response_side']== 0) & (trialdata['correct_side']==1), dtype=float) #Use float because nan is represented as float
-        right_if_left_chosen[trialdata['response_side'] != 0] = np.nan
-        lines_on_plots[15+m] = plot_signal(data_axes[15+m], lines_on_plots[15+m], aligned_signal, x_vect, right_if_left_chosen, ['Should go right, goes left', 'Should go left, goes left'])
-    
-    
-    #Plot the data for the fourth row with previous reward or punishment as the distinctive group
+    # #This is the funky stuff
     # for m in range(5):
     #     state_start_frame = state_time_stamps(consider_states[m], trialdata, average_interval)
     #     aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
-    #     correct_response = np.array(trialdata['response_side']==trialdata['correct_side'], dtype=float) #Use float because nan is represented as float
-    #     correct_response[np.isnan(trialdata['response_side'])] = np.nan
-    #     prior_correct =  determine_prior_variable(correct_response)
-    #     lines_on_plots[15+m] = plot_signal(data_axes[15+m], lines_on_plots[15+m], aligned_signal, x_vect, prior_correct, ['Prior rewarded', 'Prior punished'])
+    #     right_if_right_chosen = np.array((trialdata['response_side']== 1) & (trialdata['correct_side']==1), dtype=float) #Use float because nan is represented as float
+    #     right_if_right_chosen[trialdata['response_side'] != 1] = np.nan
+    #     lines_on_plots[10+m] = plot_signal(data_axes[10+m], lines_on_plots[10+m], aligned_signal, x_vect, right_if_right_chosen, ['Should go right, goes right', 'Should go left, goes right'])
+    
+    # for m in range(5):
+    #     state_start_frame = state_time_stamps(consider_states[m], trialdata, average_interval)
+    #     aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
+    #     right_if_left_chosen = np.array((trialdata['response_side']== 0) & (trialdata['correct_side']==1), dtype=float) #Use float because nan is represented as float
+    #     right_if_left_chosen[trialdata['response_side'] != 0] = np.nan
+    #     lines_on_plots[15+m] = plot_signal(data_axes[15+m], lines_on_plots[15+m], aligned_signal, x_vect, right_if_left_chosen, ['Should go right, goes left', 'Should go left, goes left'])
+    
+    
+    #Plot the data for the fourth row with previous reward or punishment as the distinctive group
+    for m in range(5):
+        state_start_frame = state_time_stamps(consider_states[m], trialdata, average_interval)
+        aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
+        correct_response = np.array(trialdata['response_side']==trialdata['correct_side'], dtype=float) #Use float because nan is represented as float
+        correct_response[np.isnan(trialdata['response_side'])] = np.nan
+        prior_correct =  determine_prior_variable(correct_response)
+        lines_on_plots[15+m] = plot_signal(data_axes[15+m], lines_on_plots[15+m], aligned_signal, x_vect, prior_correct, ['Prior rewarded', 'Prior punished'])
     
     
     #First allow python to find optimal axes limits
