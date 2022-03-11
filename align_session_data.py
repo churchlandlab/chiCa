@@ -12,7 +12,7 @@ import glob #Search files in directory
 import matplotlib.pyplot as plt
 import warnings #Throw warning for unmatched drops
 import os #To create a directory
-
+import errors
 #%%--------- Sort out the location of the files
 
 # Select the session directory
@@ -56,6 +56,17 @@ for k in camlog_file:
 # Remember that channel 23 is the Bpod input and channel 2 the miniscope frames,
 # first column is the channel number, second column the event number, third column
 # the teensy time stamp.
+
+#Make sure the teensy file starts with miniscope frames and not trial info
+if mscope_log[0, 0] == 23:
+     raise ValueError(f"Possibly the behavior was started before the imaging. Please check {mscope_log_file[0]}.")
+
+#In some of the log files large gaps were seen between the first and the second
+#catured frame, discard these start timestamps...
+#If first two events are putative frame captures but the second one happens more than a second after the first there is a problem
+if ((mscope_log[0, 0] == 2) & (mscope_log[1, 0] == 2)) & (mscope_log[1,2] - mscope_log[0,2] > 1000): 
+    mscope_log = mscope_log[1:mscope_log.shape[0],:] #Remove first timestamp that can't correspond to frame
+    warnings.warn(f"The first putative frame in the mscopelog file occurs 1 s before the next one. It will be cut out to align the data. Please check {mscope_log_file[0]}")
 
 trial_starts  = np.where(mscope_log[:,0] == 23) #Find all trial starts
 trial_start_frames = mscope_log[trial_starts[0]+1,1] #Set the frame just after
@@ -145,7 +156,7 @@ diff_residuals = np.diff(residuals,axis=0)
 
 #Find possible frame drop events
 #candidate_drops = [0] + np.array(np.where(diff_residuals > 0.5*average_interval))[0,:].tolist() + [residuals.shape[0]] #Mysteriously one gets a tuple of indices and zeros
-candidate_drops = [0] + np.array(np.where(diff_residuals > average_interval))[0,:].tolist() + [residuals.shape[0]] #Mysteriously one gets a tuple of indices and zeros
+candidate_drops = [0] + np.array(np.where(diff_residuals > (average_interval - average_interval*0.1)))[0,:].tolist() + [residuals.shape[0]] #Mysteriously one gets a tuple of indices and zeros
 #Turn into list and add the 0 in front and the teensy signal in the end to make looping easier.
 
 frame_drop_event = []
