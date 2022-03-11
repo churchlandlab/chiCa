@@ -11,6 +11,10 @@ of the script.
 @author: Lukas Oesch
 """
 
+
+
+
+
 align_to_state = 'PlayStimulus'
 
 state_start_frame = state_time_stamps(align_to_state, trialdata, average_interval)

@@ -24,7 +24,7 @@ directory_name = filedialog.askdirectory()
 
 data_source = directory_name + "/caiman/secondRound.hdf5" #If the directory name is still there we can agian exploit the similar naming 
 # Load  retrieve the data and load the memory-mapped movie
-A, C, S, image_dims, frame_rate, neuron_num, recording_length, movie_file, spatial_spMat = load_cnmfe_outputs.load_data(data_source)
+A, C, S, F, image_dims, frame_rate, neuron_num, recording_length, movie_file, spatial_spMat = load_cnmfe_outputs.load_data(data_source)
 
 alignment_file = glob.glob(directory_name + '/trial_alignment/*.npz')
 #In this implementation we create a separate folder to hold the alignment information,
@@ -58,12 +58,18 @@ if num_dropped > 0: #The case with dropped frames
     linear_interpolation = interp1d(leaky_time, S, axis=1)
     S_interpolated = linear_interpolation(time_vect)
     
-    print(f'Successfully interpolated {num_dropped} dropped frames')
+    if F is not None:
+       linear_interpolation = interp1d(leaky_time, F, axis=1)
+       F_interpolated = linear_interpolation(time_vect) 
+    else:
+       F_interpolated = F
     
 else:
     C_interpolated = C
     S_interpolated = S
+    F_interpolated = F
 
+print(f'Successfully interpolated {num_dropped} dropped frames')
 #%%---Save these two traces to a file inside the trial_alignment folder in this implementation
 output_file = directory_name + "/trial_alignment/interpolated_calcium_traces.npz"
 np.savez(output_file, C_interpolated = C_interpolated, S_interpolated = S_interpolated)
