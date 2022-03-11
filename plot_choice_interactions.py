@@ -2,22 +2,30 @@
 """
 Created on Wed Mar  9 12:07:34 2022
 
+Visualize interactions between prior choice and prior outcome and upcoming 
+choice and stimulus category. This script requires some functions of "visualize
+task_aligned_traces" to be imported and uses the global current_neuron.
+Make sure to have signal and window defined and fill in the desired state on top
+of the script.
+
 @author: Lukas Oesch
 """
 
-state_start_frame = state_time_stamps(consider_states[m], trialdata, average_interval)
+align_to_state = 'PlayStimulus'
+
+state_start_frame = state_time_stamps(align_to_state, trialdata, average_interval)
 aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
 
 prior_choice =  determine_prior_variable(np.array(trialdata['response_side']))
 
-outcome = np.array(trialdata['response_side'] == trialdata['correct_side'], dtype=float)
+outcome = np.array(trialdata['response_side'] == trialdata['correct_side'], dtype=float) #Define as float so that nans (that are float) can be retained
 outcome[np.array(np.isnan(trialdata['response_side']))] = np.nan
 prior_outcome =  determine_prior_variable(outcome)
 
 color_specs = ['#FC7659','#b20707','#ABBAFF','#062999']
 
 fig_prev= plt.figure(figsize=(12, 8))
-fig_prev.suptitle(f'Cell number {current_neuron} aligned to {consider_states[m]}')
+fig_prev.suptitle(f'Cell number {current_neuron} aligned to {align_to_state}')
 plax = [None] * 2
 #%%
 plax[0] = fig_prev.add_subplot(211)
