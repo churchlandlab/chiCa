@@ -7,6 +7,9 @@ Created on Tue Feb  8 19:24:59 2022
 for k in range(C_interpolated.shape[0]):
     
     neuronNum = n
+    #signal = S_interpolated
+    signal = C_interpolated
+    
     average_interval_seconds = np.floor(average_interval)/1000
     
     idx_correct = []
@@ -24,15 +27,15 @@ for k in range(C_interpolated.shape[0]):
     C_rewarded= np.full((len(idx_correct),2*half_window+1), np.nan)
     for n in range(len(idx_correct)):
         if np.isnan(state_start_frame_index[idx_correct[n]]) == 0:
-            C_rewarded[n,:] = C_interpolated[neuronNum, state_start_frame_index[idx_correct[n]] - half_window : state_start_frame_index[idx_correct[n]] + half_window+1]
+            C_rewarded[n,:] = signal[neuronNum, state_start_frame_index[idx_correct[n]] - half_window : state_start_frame_index[idx_correct[n]] + half_window+1]
         
     C_punished= np.full((len(idx_wrong),2*half_window+1), np.nan)
     for n in range(len(idx_wrong)):
         if np.isnan(state_start_frame_index[idx_wrong[n]]) == 0:
-            C_punished[n,:] = C_interpolated[neuronNum, state_start_frame_index[idx_wrong[n]] - half_window : state_start_frame_index[idx_wrong[n]] + half_window+1]  
+            C_punished[n,:] = signal[neuronNum, state_start_frame_index[idx_wrong[n]] - half_window : state_start_frame_index[idx_wrong[n]] + half_window+1]  
     
     
-    fi = plt.figure()
+    fi = plt.figure(figsize=(12, 8))
     fi.suptitle(f'Cell number {neuronNum} aligned to {state_name}')
     ax1 = fi.add_subplot(121)
     ax2 = fi.add_subplot(122)

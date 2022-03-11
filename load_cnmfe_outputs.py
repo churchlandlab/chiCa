@@ -39,6 +39,11 @@ def load_data(data_source):
         C = np.array(hf.get('estimates/C'))
         S = np.array(hf.get('estimates/S'))
         
+        try:
+            F = np.array(hf.get('estimates/F_dff'))
+        except:
+            F = None
+        
 # Get the sparse matrix with the shapes of the individual neurons
         temp = hf.get('estimates/A')
         
@@ -55,6 +60,10 @@ def load_data(data_source):
         
         C = data_source.estimates.C
         S = data_source.estimates.S
+        if data_source.estimtaes.F_dff is None:
+            F = None
+        else:
+            F = data_source.estimtates.F_dff
         
         spMat = data_source.estimates.A
         
@@ -88,6 +97,6 @@ def load_data(data_source):
 #%%---Define the outputs
     print('------------------------')
     print('Successfully loaded data')
-    return A, C, S, image_dims, frame_rate, neuron_num, recording_length, movie_file, spMat
+    return A, C, S, F, image_dims, frame_rate, neuron_num, recording_length, movie_file, spMat
 
     

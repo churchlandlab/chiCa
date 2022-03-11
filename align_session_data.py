@@ -182,7 +182,7 @@ for k in range(len(frame_drop_event)):
     
 #Verify the number of dropped frames
 if np.sum(dropped_per_event) == num_dropped:
-    print(f"Matched {num_dropped} dropped frames in the recording")
+    print(f"Matched {num_dropped} dropped frames in the miniscope recording")
     print("-----------------------------------------------------")
     
     if 0 in dropped_per_event: #Print an additional message if one of the drop events is empty
@@ -222,4 +222,4 @@ np.savez(output_file, trial_start_frames = trial_start_frames, num_dropped = num
         jump_size = jump_size, rounding_error = rounding_error, average_interval = average_interval,
         acquired_frame_num = acquired_frame_num,
         trial_start_time_covered = trial_start_time_covered, trial_start_video_frame = trial_start_video_frame,
-        average_video_frame_interval = average_video_frame_interval)
+        average_video_frame_interval = average_video_frame_interval, camera_name = camera_name)

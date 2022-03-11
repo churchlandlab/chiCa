@@ -12,6 +12,7 @@ import random #To pick a random frame
 from tkinter import Tk #For interactive selection, this part is only used to withdraw() the little selection window once the selection is done.
 import tkinter.filedialog as filedialog
 import glob #To pick files of a specified type
+from os import path
 
 #%%---------Select session folder and get the required files--------------
 # Select the session directory
@@ -56,8 +57,40 @@ trialstates = pd.DataFrame(trialstates)
 trialevents = pd.DataFrame(trialevents)
 trialdata = pd.merge(trialevents,trialstates,left_index=True, right_index=True)
 
+#Add response and stimulus train related information: correct side, rate, event occurence time stamps
 trialdata.insert(trialdata.shape[1], 'response_side', sesdata['ResponseSide'].tolist())
-#Add the response side of the animal to the end of the data frame
+trialdata.insert(trialdata.shape[1], 'correct_side', sesdata['CorrectSide'].tolist())
+
+#Get stim modality$
+tmp_modality_numeric = sesdata['Modality'].tolist()
+temp_modality = []
+for t in tmp_modality_numeric:
+    if t == 1:
+        temp_modality.append('visual')
+    elif t == 2: 
+        temp_modality.append('auditory')
+    elif t == 3:
+        temp_modality.append('audio-visual')
+    else: 
+        temp_modality.append(np.nan)
+        print('Could not determine modality and set value to nan')
+        
+trialdata.insert(trialdata.shape[1], 'stimulus_modality', temp_modality)
+
+#Reconstruct the time stamps for the individual stimuli
+event_times = []
+event_duration = sesdata['StimulusDuration'].tolist()[0]
+for t in range(trialdata.shape[0]):
+    temp_isi = sesdata['InterStimulusIntervalList'].tolist().tolist()[t][tmp_modality_numeric[t]-1]
+    #Index into the corresponding trial and find the isi for the corresponding modality
+    
+    temp_trial_event_times = [temp_isi[0]] 
+    for k in range(1,temp_isi.shape[0]-1): #Start at 1 because the first Isi is already the timestamp after the play stimulus
+        temp_trial_event_times.append(temp_trial_event_times[k-1] + event_duration + temp_isi[k])
+
+    event_times.append(temp_trial_event_times + trialdata['PlayStimulus'][t][0]) #Add the timestamp for play stimulus to the event time
+
+trialdata.insert(trialdata.shape[1], 'stimulus_event_timestamps', event_times)
 
 #Add the miniscope alignment parameters
 trialdata.insert(0, 'trial_start_frame_index', trial_start_frames[0:len(tmp)]) #Exclude the last trial that has not been completed.
@@ -66,6 +99,14 @@ trialdata.insert(1, 'trial_start_time_covered', trial_start_time_covered[0:len(t
 #Add alignment for the video tracking
 for n in range(len(trial_start_video_frame)):
     trialdata.insert(2, camera_name[n]+ '_trial_start_index', trial_start_video_frame[n][0:len(tmp)])
+
+#%%--------Save the trialdata to an hdf file in trial_alignment
+
+directory_parts = directory_name.split(sep = '/')
+levels = len(directory_parts)
+#This split is save because the directory name retrieved from tkinter's
+#askoepndirectory.name is an absolute path that is the same for Win and Linux
+trialdata.to_hdf(path.join(directory_name, 'trial_alignment', directory_parts[levels-2] + '_' + directory_parts[levels-1] + '_trialdata.h5' ), '/Data'  )
 
 #%%------Check how much the recorded trial duration and the trial duration 
 #        reconstructed from the imaging or video frame indicies deviate. If the
@@ -102,9 +143,13 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
     
     for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
           if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
-              frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
-              #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
-              
+              try:    
+                  frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
+                  #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
+              except:
+                  frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['ObsInitFixation'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
+                  #If this is the previous implementation of chipmunk
+                  
               tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
               state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_frame_index"][n])
               #np.where returns a tuple where the first element are the indices that fulfill the condition.
@@ -136,9 +181,13 @@ def find_state_start_frame_video(state_name, trialdata, average_video_frame_inte
     
     for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
           if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
-              frame_time = np.arange(average_video_frame_interval, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_video_frame_interval)
-              #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
-
+              try:    
+                  frame_time = np.arange(average_video_frame_interval, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_video_frame_interval)
+                  #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
+              except:
+                  frame_time = np.arange(average_video_frame_interval, trialdata['ObsInitFixation'][n][0] - trialdata['Sync'][n][0], average_video_frame_interval)
+                  #If this is the previous implementation of chipmunk
+                  
               tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
               state_start_video_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata[camera_name + "_trial_start_index"][n])
               #np.where returns a tuple where the first element are the indices that fulfill the condition.
