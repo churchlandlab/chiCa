@@ -48,7 +48,7 @@ def run_neuron_selection(data_source = None):
         data_source = askopenfile(title="Select a file", filetypes=[('HDF5 files','*.hdf5')]).name # The file comes as a weird TextIOWrapper
     
     # Load  retrieve the data and load the memory-mapped movie
-    A, C, S, image_dims, frame_rate, neuron_num, recording_length, movie_file, spatial_spMat = load_cnmfe_outputs.load_data(data_source)
+    A, C, S, F, image_dims, frame_rate, neuron_num, recording_length, movie_file, spatial_spMat = load_cnmfe_outputs.load_data(data_source)
     
     # Load the motion corrected movie (memory mapped)
     Yr = np.memmap(movie_file, mode='r', shape=(image_dims[0] * image_dims[1], recording_length),

@@ -158,7 +158,7 @@ def main():
     rigid_shifts = np.array(mc.shifts_rig) # Retrieve shifts from mc object
     
     outputPath = os.path.dirname(fnames[0]) #Assuming that you want the results in the same location
-    np.savetxt(outputPath + '/rigid_shifts.txt', rigid_shifts) #Save the np array to text
+    np.save(outputPath + '/rigid_shifts', rigid_shifts) #Save the np array to npy file
 
 #%%
     # load memory mappable file
@@ -233,7 +233,15 @@ def main():
         
 # %% compute some summary images (correlation and peak to noise)
     # change swap dim if output looks weird, it is a problem with tiffile
-    cn_filter, pnr = cm.summary_images.correlation_pnr(images[::10], gSig=gSig[0], swap_dim=False)
+    corr_image_start = time()
+    cn_filter, pnr = cm.summary_images.correlation_pnr(images[::1], gSig=gSig[0], swap_dim=False)
+    #compute the correlation and pnr image on every frame. This takes longer but will yield
+    #the actual correlation image that can be used later to align other sessions to this session
+    corr_image_end = time()
+    print(f"Computed correlation- and pnr images in {corr_image_end - corr_image_start} s.")
+    
+    np.save(outputPath + '/spatio_temporal_correlation_image', cn_filter)
+    np.save(outputPath + '/median_projection', medProj)
     # if your images file is too long this computation will take unnecessarily
     # long time and consume a lot of memory. Consider changing images[::1] to
     # images[::5] or something similar to compute on a subset of the data
@@ -280,7 +288,12 @@ def main():
     
 #%% Run the fitting again with only the accepted components
     cnm.refit(images, dview = dview)
+    cnm.estimates.detrend_df_f() #Also reconstruct the detrended non/denoised trace
     cnm.save(outputPath + '/secondRound.hdf5') 
+    
+#%%-------AUXILIARY FUNCTIONS AND VISUALIZATIONS
+    
+##############################################################################
 # %% ALTERNATE WAY TO RUN THE PIPELINE AT ONCE
     #   you can also perform the motion correction plus cnmf fitting steps
     #   simultaneously after defining your parameters object using
