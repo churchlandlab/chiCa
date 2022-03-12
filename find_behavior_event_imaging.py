@@ -114,20 +114,22 @@ trialdata.to_hdf(path.join(directory_name, 'trial_alignment', directory_parts[le
 
 bpod_trial_dur = np.diff(np.array(sesdata['TrialStartTimestamp'].tolist())) #The duration of the trial as recorded by Bpod
 approx_imaging_frame_time = np.zeros(len(trialdata)-1)
-approx_video_frame_time = np.zeros(len(trialdata)-1)
-for k in range(len(trialdata)-2):
+approx_video_frame_time = np.zeros([len(trialdata)-1, len(camera_name)])
+for k in range(len(trialdata)-1):
     approx_imaging_frame_time[k] = (trialdata['trial_start_frame_index'][k+1] - trialdata['trial_start_frame_index'][k]) * (average_interval/1000)
-    approx_video_frame_time[k] = (trialdata['trial_start_video_frame_index'][k+1] - trialdata['trial_start_video_frame_index'][k]) * average_video_frame_interval
+    for n in range(len(camera_name)):
+        approx_video_frame_time[k,n] = (trialdata[camera_name[n] + '_trial_start_index'][k+1] - trialdata[camera_name[n] + '_trial_start_index'][k]) * average_video_frame_interval
     
 imaging_time_difference = approx_imaging_frame_time - bpod_trial_dur
 unexpected_imaging_time_diff = imaging_time_difference[imaging_time_difference > average_interval/1000] #Average interval is in ms
 if unexpected_imaging_time_diff.shape[0]:
     print("There is a mismatch between the recorded trial duration \nand the expected time of trials from the imaging frames.")
 
-video_time_difference = approx_video_frame_time - bpod_trial_dur
-unexpected_video_time_diff = video_time_difference[video_time_difference > average_video_frame_interval] #Average interval is in ms
-if unexpected_video_time_diff.shape[0]:
-    print("Trial duration and reconstructed video frame time mismatch.\nChekc video alignment")
+for n in range(len(camera_name)):
+    video_time_difference = approx_video_frame_time[:,n] - bpod_trial_dur
+    unexpected_video_time_diff = video_time_difference[video_time_difference > average_video_frame_interval] #Average interval is in ms
+    if unexpected_video_time_diff.shape[0]:
+        print("Trial duration and reconstructed video frame time mismatch for {camera_name[n]}.\nChekc video alignment")
 
 #%%----Extract the time stamps aligned to a certain task state
 

@@ -12,7 +12,7 @@ import glob #Search files in directory
 import matplotlib.pyplot as plt
 import warnings #Throw warning for unmatched drops
 import os #To create a directory
-import errors
+
 #%%--------- Sort out the location of the files
 
 # Select the session directory
