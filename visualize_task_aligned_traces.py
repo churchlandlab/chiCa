@@ -174,8 +174,8 @@ def figure_updater(fig_handle, data_axes, lines_on_plots, signal, trialdata, ave
        the figure. The states that are plotted are set inside this function 
        currently but may be passed in a later version.'''
        
-    consider_states = ['DemonInitFixation', 'stimulus_event_timestamps', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
-    #consider_states = ['DemonInitFixation', 'PlayStimulus', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
+    #consider_states = ['DemonInitFixation', 'stimulus_event_timestamps', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
+    consider_states = ['DemonInitFixation', 'PlayStimulus', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
     label_states = ['Start center fixation', 'First stimulus event', 'Movement onset', 'Reward', 'Punishment']
     # for m,(cstates, lines, d_axes) in enumerate(zip(consider_states, lines_on_plots,  data_axes)):
     #     state_start_frame = state_time_stamps(cstates, trialdata, average_interval)

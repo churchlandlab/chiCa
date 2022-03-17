@@ -62,9 +62,12 @@ if mscope_log[0, 0] == 23:
      raise ValueError(f"Possibly the behavior was started before the imaging. Please check {mscope_log_file[0]}.")
 
 #In some of the log files large gaps were seen between the first and the second
-#catured frame, discard these start timestamps...
+#catured frame. This happens when the logging start automatically already but then
+#the scope DAQ has to be unplugged from the computer to properly start the scope 
+#acquisition. Remove these instances.
 #If first two events are putative frame captures but the second one happens more than a second after the first there is a problem
 if ((mscope_log[0, 0] == 2) & (mscope_log[1, 0] == 2)) & (mscope_log[1,2] - mscope_log[0,2] > 1000): 
+  #TODO: check for multiple replugging events and raise error if not enough frames are left...
     mscope_log = mscope_log[1:mscope_log.shape[0],:] #Remove first timestamp that can't correspond to frame
     warnings.warn(f"The first putative frame in the mscopelog file occurs 1 s before the next one. It will be cut out to align the data. Please check {mscope_log_file[0]}")
 
@@ -110,9 +113,6 @@ for n in range(len(video_tracking)):
         if video_tracking[n][k,2] == camera_channel and video_tracking[n][k+1,2] == trial_channel:
             trial_start.append(k)
 
-####-----TO BE FIXED: In sessions acquired currently from Pine, Spruce and Cypress
-#                     the first trial start signal is lost on the log file.
-#                     Do the cameras start too late?
     #Append the existing lists for these variables
     trial_start_video_frame.append(trial_start)
     average_video_frame_interval.append(np.mean(np.diff(video_tracking[n][:,1])))
