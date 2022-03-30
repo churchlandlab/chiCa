@@ -120,3 +120,145 @@ y_lims = np.array([np.min(tmp[:,0]), np.max(tmp[:,1])])
 for k in range(len(plax)):
     plax[k].set_ylim(y_lims)
 del y_lims
+
+
+
+
+#%%---------Make plots to split the current choice into past choice traces
+
+fig_split_current = plt.figure(figsize=(10, 8))
+fig_split_current.suptitle(f'Cell number {current_neuron} aligned to {align_to_state}')
+spAx = [None] * 4
+
+#Right will correctly be chosen
+spAx[0] = fig_split_current.add_subplot(221)
+grouping_variable = np.squeeze(np.array([(trialdata['response_side']==1) & (trialdata['correct_side']==1)])) #Squeeze the second dimension
+left_split = np.where((prior_choice==0) & (grouping_variable==1))[0]
+right_split = np.where((prior_choice==1) & (grouping_variable==1))[0]
+left_lines = spAx[0].plot(x_vect, aligned_signal[:,left_split], color=color_specs[3],linewidth=0.5)
+right_lines = spAx[0].plot(x_vect, aligned_signal[:,right_split], color=color_specs[1],linewidth=0.5)
+line_labels = [f'Prior left choice, {len(left_lines)} trials', f'Prior right choice, {len(right_lines)} trials']
+spAx[0].legend([left_lines[0], right_lines[0]], line_labels, loc='upper left')
+#spAx[0].set_xlabel('Time from stim onset (s)')
+spAx[0].set_ylabel('Fluorescence intensity (A.U.)')
+spAx[0].set_title('Upcoming correct right choice')
+
+#Left will correctly be chosen
+spAx[1] = fig_split_current.add_subplot(224)
+grouping_variable = np.squeeze(np.array([(trialdata['response_side']==0) & (trialdata['correct_side']==0)])) #Squeeze the second dimension
+left_split = np.where((prior_choice==0) & (grouping_variable==1))[0]
+right_split = np.where((prior_choice==1) & (grouping_variable==1))[0]
+left_lines = spAx[1].plot(x_vect, aligned_signal[:,left_split], color=color_specs[3],linewidth=0.5)
+right_lines = spAx[1].plot(x_vect, aligned_signal[:,right_split], color=color_specs[1],linewidth=0.5)
+line_labels = [f'Prior left choice, {len(left_lines)} trials', f'Prior right choice, {len(right_lines)} trials']
+spAx[1].legend([left_lines[0], right_lines[0]], line_labels, loc='upper left')
+spAx[1].set_xlabel('Time from stim onset (s)')
+spAx[1].set_ylabel('Fluorescence intensity (A.U.)')
+spAx[1].set_title('Upcoming correct left choice')
+
+#Right will incorrectly be chosen
+spAx[2] = fig_split_current.add_subplot(223)
+grouping_variable = np.squeeze(np.array([(trialdata['response_side']==1) & (trialdata['correct_side']==0)])) #Squeeze the second dimension
+left_split = np.where((prior_choice==0) & (grouping_variable==1))[0]
+right_split = np.where((prior_choice==1) & (grouping_variable==1))[0]
+left_lines = spAx[2].plot(x_vect, aligned_signal[:,left_split], color=color_specs[3],linewidth=0.5)
+right_lines = spAx[2].plot(x_vect, aligned_signal[:,right_split], color=color_specs[1],linewidth=0.5)
+line_labels = [f'Prior left choice, {len(left_lines)} trials', f'Prior right choice, {len(right_lines)} trials']
+spAx[2].legend([left_lines[0], right_lines[0]], line_labels, loc='upper left')
+spAx[2].set_xlabel('Time from stim onset (s)')
+spAx[2].set_ylabel('Fluorescence intensity (A.U.)')
+spAx[2].set_title('Upcoming incorrect right choice')
+
+#Left will incorrectly be chosen
+spAx[3] = fig_split_current.add_subplot(222)
+grouping_variable = np.squeeze(np.array([(trialdata['response_side']==0) & (trialdata['correct_side']==1)])) #Squeeze the second dimension
+left_split = np.where((prior_choice==0) & (grouping_variable==1))[0]
+right_split = np.where((prior_choice==1) & (grouping_variable==1))[0]
+left_lines = spAx[3].plot(x_vect, aligned_signal[:,left_split], color=color_specs[3],linewidth=0.5)
+right_lines = spAx[3].plot(x_vect, aligned_signal[:,right_split], color=color_specs[1],linewidth=0.5)
+line_labels = [f'Prior left choice, {len(left_lines)} trials', f'Prior right choice, {len(right_lines)} trials']
+spAx[3].legend([left_lines[0], right_lines[0]], line_labels, loc='upper left')
+#spAx[3].set_xlabel('Time from stim onset (s)')
+spAx[3].set_ylabel('Fluorescence intensity (A.U.)')
+spAx[3].set_title('Upcoming incorrect left choice')
+
+#Adjust y-axis limtis
+tmp = np.zeros([4,2]) 
+for k in range(len(spAx)):
+     tmp[k,:] = spAx[k].get_ylim()
+    
+y_lims = np.array([np.min(tmp[:,0]), np.max(tmp[:,1])])
+for k in range(len(spAx)):
+    spAx[k].set_ylim(y_lims)
+del y_lims
+
+#%%
+
+fig_split_out_current = plt.figure(figsize=(10, 8))
+fig_split_out_current.suptitle(f'Cell number {current_neuron} aligned to {align_to_state}')
+opAx = [None] * 4
+
+color_specs = ['#587f0a','#d48611']
+
+#Right will correctly be chosen
+opAx[0] = fig_split_out_current.add_subplot(221)
+grouping_variable = np.squeeze(np.array([(trialdata['response_side']==1) & (trialdata['correct_side']==1)])) #Squeeze the second dimension
+reward_split = np.where((prior_outcome==1) & (grouping_variable==1))[0]
+punish_split = np.where((prior_outcome==0) & (grouping_variable==1))[0]
+reward_lines = opAx[0].plot(x_vect, aligned_signal[:,reward_split], color=color_specs[0],linewidth=0.5)
+punish_lines = opAx[0].plot(x_vect, aligned_signal[:,punish_split], color=color_specs[1],linewidth=0.5)
+line_labels = [f'Prior reward, {len(reward_lines)} trials', f'Prior punishment, {len(punish_lines)} trials']
+opAx[0].legend([reward_lines[0], punish_lines[0]], line_labels, loc='upper left')
+#opAx[0].set_xlabel('Time from stim onset (s)')
+opAx[0].set_ylabel('Fluorescence intensity (A.U.)')
+opAx[0].set_title('Upcoming correct right choice')
+
+#Left will incorrectly be chosen
+opAx[1] = fig_split_out_current.add_subplot(222)
+grouping_variable = np.squeeze(np.array([(trialdata['response_side']==0) & (trialdata['correct_side']==1)])) #Squeeze the second dimension
+reward_split = np.where((prior_outcome==1) & (grouping_variable==1))[0]
+punish_split = np.where((prior_outcome==0) & (grouping_variable==1))[0]
+reward_lines = opAx[1].plot(x_vect, aligned_signal[:,reward_split], color=color_specs[0],linewidth=0.5)
+punish_lines = opAx[1].plot(x_vect, aligned_signal[:,punish_split], color=color_specs[1],linewidth=0.5)
+line_labels = [f'Prior reward, {len(reward_lines)} trials', f'Prior punishment, {len(punish_lines)} trials']
+opAx[1].legend([reward_lines[0], punish_lines[0]], line_labels, loc='upper left')
+#opAx[0].set_xlabel('Time from stim onset (s)')
+opAx[1].set_ylabel('Fluorescence intensity (A.U.)')
+opAx[1].set_title('Upcoming incorrect left choice')
+
+#Right will incorrectly be chosen
+opAx[2] = fig_split_out_current.add_subplot(223)
+grouping_variable = np.squeeze(np.array([(trialdata['response_side']==1) & (trialdata['correct_side']==0)])) #Squeeze the second dimension
+reward_split = np.where((prior_outcome==1) & (grouping_variable==1))[0]
+punish_split = np.where((prior_outcome==0) & (grouping_variable==1))[0]
+reward_lines = opAx[2].plot(x_vect, aligned_signal[:,reward_split], color=color_specs[0],linewidth=0.5)
+punish_lines = opAx[2].plot(x_vect, aligned_signal[:,punish_split], color=color_specs[1],linewidth=0.5)
+line_labels = [f'Prior reward, {len(reward_lines)} trials', f'Prior punishment, {len(punish_lines)} trials']
+opAx[2].legend([reward_lines[0], punish_lines[0]], line_labels, loc='upper left')
+opAx[2].set_xlabel('Time from stim onset (s)')
+opAx[2].set_ylabel('Fluorescence intensity (A.U.)')
+opAx[2].set_title('Upcoming incorrect right choice')
+
+#Left will correctly be chosen
+opAx[3] = fig_split_out_current.add_subplot(224)
+grouping_variable = np.squeeze(np.array([(trialdata['response_side']==0) & (trialdata['correct_side']==0)])) #Squeeze the second dimension
+reward_split = np.where((prior_outcome==1) & (grouping_variable==1))[0]
+punish_split = np.where((prior_outcome==0) & (grouping_variable==1))[0]
+reward_lines = opAx[3].plot(x_vect, aligned_signal[:,reward_split], color=color_specs[0],linewidth=0.5)
+punish_lines = opAx[3].plot(x_vect, aligned_signal[:,punish_split], color=color_specs[1],linewidth=0.5)
+line_labels = [f'Prior reward, {len(reward_lines)} trials', f'Prior punishment, {len(punish_lines)} trials']
+opAx[3].legend([reward_lines[0], punish_lines[0]], line_labels, loc='upper left')
+opAx[3].set_xlabel('Time from stim onset (s)')
+opAx[3].set_ylabel('Fluorescence intensity (A.U.)')
+opAx[3].set_title('Upcoming correct left choice')
+
+#Adjust y-axis limtis
+tmp = np.zeros([4,2]) 
+for k in range(len(opAx)):
+     tmp[k,:] = opAx[k].get_ylim()
+    
+y_lims = np.array([np.min(tmp[:,0]), np.max(tmp[:,1])])
+for k in range(len(spAx)):
+    opAx[k].set_ylim(y_lims)
+del y_lims
+

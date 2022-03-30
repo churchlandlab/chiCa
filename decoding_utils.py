@@ -1,0 +1,161 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Mar 29 11:45:26 2022
+
+@author: Lukas Oesch
+"""
+
+#%%--------------Do z-Scoring on the calcium time series
+def standardize_signal(signal):
+    '''Apply Z-scoring on the provided input signal. Make sure that cells (features)
+    are rows and samples are columns.'''
+    
+    from scipy.stats import zscore
+    
+    st_signal = zscore(signal, axis = 1) #This is where the orientation is specified!
+    return st_signal
+
+
+#%%-------------Retrieve the time stamps for the occurence of the task state of interest
+def find_state_start_frame_imaging(state_name, trialdata, average_interval, trial_start_time_covered):
+    '''Locate the frame during which a certain state in the chipmunk task has
+    started. Requires state_name (string with the name of the state of interest)
+    trialdata (a pandas dataframe with the trial start frames
+    and the state timers) and average interval (the average frame interval as 
+    as recorded by teensy).'''
+    
+    import numpy as np
+                                                
+    state_start_frame = [None] * len(trialdata) #The frame that covers the start of
+    state_time_covered = np.zeros([len(trialdata)]) #The of the side that has been covered by the frame
+    
+    for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
+          if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
+              try:    
+                  frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
+                  #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
+              except:
+                  frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['ObsInitFixation'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
+                  #If this is the previous implementation of chipmunk
+                  
+              tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
+              state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_frame_index"][n])
+              #np.where returns a tuple where the first element are the indices that fulfill the condition.
+              #Inside the array of indices retrieve the first one that is positive, therefore the first
+              #frame that caputres some information.
+         
+              state_time_covered[n] =  tmp[tmp > 0][0] #Retrieve the time that was covered by the frame
+          else:
+              state_start_frame[n] = np.nan
+              state_time_covered[n] = np.nan
+          
+    return state_start_frame, state_time_covered
+
+
+#%%------------Track task variable in past trials
+def determine_prior_variable(tracked_variable, valid_trials, consecutive_trials_back=1):
+    '''Get the label of a task variable or action on a preceeding trial. This 
+    function ensures that all the trials between the one we look for and the current
+    one are valid, meaning there was a response.
+    
+    Parameters
+    ----------
+    tracked_variable: a numpy array of the variable to be tracked
+    valid_trials: numpy array of trials with a choice
+    consecutive_trials_back: numpy array that sets at what trial in the past
+                             the prior variable should be assesed if all the
+                             trialsup to the current have been valid.
+                             
+    Returns
+    -------
+    prior_label: numpy array of the label of the tracked variable at trial = 
+                 consecutive_trials_back.
+                 
+    Examples
+    --------
+    prior_label = determine_prior_variable(tracked_variable, valid_trials, consecutive_trials_back=1)
+    prior_label = determine_prior_variable(tracked_variable, valid_trials)
+    '''
+    
+    import numpy as np
+    
+    prior_label = np.zeros([tracked_variable.shape[0]]) * np.nan
+    
+    for n in range(consecutive_trials_back, tracked_variable.shape[0]): #First time this can be detected is after consecutive_trials_back
+            if np.isnan(tracked_variable[n - consecutive_trials_back]) == 0: #Make sure variable to be tracked is not Nan for the trial in question, might be redundant
+                if np.nansum(valid_trials[n - consecutive_trials_back : n+1]) == consecutive_trials_back + 1: #Only include if all consecutive trials are valid.
+                    prior_label[n] = tracked_variable[n - consecutive_trials_back]
+    
+    return prior_label
+
+#%%-----------Balance the data sets for top level variable and subvariable
+def balance_dataset(label, secondary_label = None):
+    '''Balance the number of observaitions for each class in the dataset by
+    subsampling from the majority classes while retaining all observations of 
+    the minority class. This function offers the option to balance for two
+    types of classes. This is useful when for decoding stimulus category 
+    independent of animal choice as they are highly correlated in expert animals
+    and therefore unbalanced. Note that all the returned indices are permuted
+    within class and indices for classes are stacked on to of each other.
+    
+    Parameters
+    ----------
+    label: numpy array, vector of the class labels of the data. Nans will be
+           ignored.
+    secondary_label: numpy array, vector of additional class labels, default = None
+    
+    Returns
+    -------
+    pick_to_balance: numpy array, vector of indices for samples to be icluded
+                     to obtain a balanced dataset.
+    sample_num = int, the number of samples per condition. For simple balancing
+                 pick_to_balance = 2*sample_num, for balancing with a secondary
+                 variable pick_to_balance = 2*2*sample_num.
+                     
+    Examples
+    --------
+    pick_to_balance = balance_dataset(label, secondary_label) #Balance by the two variables
+    pick_to_balance = balance_dataset(label) #Balance for classes in label only
+    '''
+    
+    import numpy as np
+    
+    classes = np.unique(label)
+    classes = classes[np.isnan(classes)==0] #Determine the classes in the labels and exclude nans
+    
+    if secondary_label is None:    
+        class_counts = np.array([np.sum(label==classes[n]) for n in range(classes.shape[0])])
+        #Convoluted code: sum up all the labels falling under one class for the two different classes
+        sample_num = int(np.min(class_counts)) #Define how many sample per class to retain
+        
+        #Start assembling the indices for balancing the classes
+        pick_to_balance = np.array([], dtype=int)
+        for n in range(0, classes.shape[0]):
+            temp_permuted = np.random.permutation(np.where(label==classes[n])[0]) #Also permute minority class to make it more general
+            pick_to_balance = np.hstack((pick_to_balance, temp_permuted[0:sample_num]))
+        
+              
+    elif secondary_label is not None:
+        #If one needs to balance a subclass inside the labels do the same thing again
+        subclasses = np.unique(secondary_label)
+        subclasses = subclasses[np.isnan(subclasses)==0] #Determine the classes in the labels and exclude nans
+    
+        subclass_counts = np.zeros([subclasses.shape[0], classes.shape[0]]) #Generate a matrix with subclass counts (in rows) by class labels (in columns)
+        for k in range(classes.shape[0]):
+            for n in range(subclasses.shape[0]):
+                subclass_counts[n,k] = np.sum(secondary_label[label==classes[k]]==subclasses[n])
+                #Within the specified class sum up all the secondary_labels that correspond to a particular subclass
+                
+        sample_num = int(np.min(subclass_counts))
+        
+        #Start assembling the indices for balancing subclasses within balanced classes
+        pick_to_balance = np.array([], dtype=int)
+        for k in range(0, classes.shape[0]):
+            for n in range(0,subclasses.shape[0]):
+                temp_permuted = np.random.permutation(np.where((label==classes[k]) & (secondary_label==subclasses[n]))[0])             
+                pick_to_balance = np.hstack((pick_to_balance, temp_permuted[0:sample_num]))
+
+    return pick_to_balance, sample_num
+
+#%%
+

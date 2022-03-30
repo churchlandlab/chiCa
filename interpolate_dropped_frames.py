@@ -72,7 +72,7 @@ else:
 print(f'Successfully interpolated {num_dropped} dropped frames')
 #%%---Save these two traces to a file inside the trial_alignment folder in this implementation
 output_file = directory_name + "/trial_alignment/interpolated_calcium_traces.npz"
-np.savez(output_file, C_interpolated = C_interpolated, S_interpolated = S_interpolated)
+np.savez(output_file, C_interpolated = C_interpolated, S_interpolated = S_interpolated, F_interpolated = F_interpolated)
 
 #%%----auxiliary visualization tools
 
