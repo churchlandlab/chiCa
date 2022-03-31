@@ -11,19 +11,43 @@ def standardize_signal(signal):
     are rows and samples are columns.'''
     
     from scipy.stats import zscore
+    #import numpy as np #Don't need to import numpy because the signal is already a numpy array object that can be transposed
     
     st_signal = zscore(signal, axis = 1) #This is where the orientation is specified!
+    st_signal = st_signal.transpose() #Now flip the orientation to be able to feed it into the model
     return st_signal
 
 
 #%%-------------Retrieve the time stamps for the occurence of the task state of interest
 def find_state_start_frame_imaging(state_name, trialdata, average_interval, trial_start_time_covered):
     '''Locate the frame during which a certain state in the chipmunk task has
-    started. Requires state_name (string with the name of the state of interest)
-    trialdata (a pandas dataframe with the trial start frames
-    and the state timers) and average interval (the average frame interval as 
-    as recorded by teensy).'''
+    started. The function also returns the time after state onset that was 
+    covered by the frame acquisition. This may be helpful when interpreting 
+    onset responses and their variability.
     
+    Parameters
+    ----------
+    state_name: string, the state machine's state to align the events to.
+    trialdata: pandas dataframe, a trial number by X dataframe, where X are different
+               task states and the calium imaging indices that indicate the 
+               start of the respective trial.
+    average_interval: float, the mean interval in ms between imaging frames, used
+                      to calculate the aligned frame indices from the trial start 
+                      frame index and the state occurence timers.
+    trial_start_time_covered: numpy array, vector of time within the trial that 
+                              was captured within the imaging trial start frame.
+    
+    Retunrs
+    -------
+    state_start_frame: list, the frame index when the respective state started
+                       in every trial.
+    state_time_covered: numpy array, the time after state onset that is covered
+                        by the imaging frame.
+                        
+    Examples
+    --------
+    state_start_frame, state_time_covered = find_state_start_frame_imaging(state_name, trialdata, average_interval, trial_start_time_covered)
+    '''
     import numpy as np
                                                 
     state_start_frame = [None] * len(trialdata) #The frame that covers the start of
@@ -157,5 +181,84 @@ def balance_dataset(label, secondary_label = None):
 
     return pick_to_balance, sample_num
 
-#%%
+#%%--------Train cross-validated logistic regression model
+def train_logistic_regression(data, labels, k_folds, model_params=None):
+    '''Train regularized, corss-validated logistic regression models and perform
+    a shuffled control. The corss-validation is performed in a stratified way,
+    to maintain similar proportions of the input lables. As a control, the labels
+    of the training samples are shuffled and a model then trained on these shuffled
+    labels. The shuffled model performance is evaluated on the correct testing
+    data.
+    
+    Parameters
+    ----------
+    data: numpy array, rows are observations and columns are features.
+    labels: numpy array, vector of lables for the corresponding observations.
+    k_folds: int, number of folds to perform cross-validation on
+    model_params: dict, specifies model parameters. The keys are: penalty 
+                  (the type of regularization to be applied),
+                  inverse_regularization_strength, solver 
+                  
+    Returns
+    -------
+    models: pandas dataframe, results of the model fitting.
+    
+    Examples
+    --------
+    models = train_logistic_regression(data, labels, 10, model_params)
+        '''
 
+    import numpy as np
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import StratifiedKFold
+    
+    #First, get the model parameters
+    if model_params is None:
+        penalty='l1' 
+        inverse_regularization_strength = 1 
+        solver='liblinear'
+        model_params = {'penalty': penalty, 'inverse_regularization_strength': inverse_regularization_strength, 'solver': solver}
+        #Re-create the model_params to store the defaults 
+        
+    elif model_params is not None:
+        for key,val in model_params.items():
+            exec(key + '=val')
+            
+    #Set up the dataframe to store the training outputs 
+    models = pd.DataFrame(columns=['model_accuracy', 'model_coefficients', 'model_intercept', 'model_n_iter', 
+                                   'shuffle_accuracy', 'shuffle_coefficients', 'shuffle_intercept', 'shuffle_n_iter',
+                                   'parameters', 'fold_number'],
+                          index=range(0, k_folds))
+            
+    skf = StratifiedKFold(n_splits = k_folds) #Use stratified cross-validation to make sure 
+    #that the folds are balanced themselves and that the training and validation is 
+    #stable.
+    skf.get_n_splits(data, labels)
+    k_fold_generator = skf.split(data, labels) #This returns a generator object that spits out a different split at each call
+    
+    #Train the decoder
+    for n in range(k_folds):
+        train_index, test_index = k_fold_generator.__next__() #This is how the generator has to be called if not directly looped over
+        X_train, X_test = data[train_index], data[test_index]
+        y_train, y_test = labels[train_index], labels[test_index]
+        y_train_shuffled = np.random.permutation(y_train) #Shuffle the labels of the training data for the control
+        #The actual model
+        log_reg = LogisticRegression(penalty = penalty, C = inverse_regularization_strength, solver = solver).fit(X_train,y_train)
+        #The shuffled control
+        log_reg_shuffled = LogisticRegression(penalty = penalty, C = inverse_regularization_strength, solver = solver).fit(X_train,y_train_shuffled)
+        
+        models['model_accuracy'][n] = log_reg.score(X_test, y_test)
+        models['model_coefficients'][n] = log_reg.coef_
+        models['model_intercept'][n] = log_reg.intercept_[0]
+        models['model_n_iter'][n] = log_reg.n_iter_[0]
+        
+        models['shuffle_accuracy'][n] = log_reg_shuffled.score(X_test, y_test)
+        models['shuffle_coefficients'][n] = log_reg_shuffled.coef_
+        models['shuffle_intercept'][n] = log_reg_shuffled.intercept_[0]
+        models['shuffle_n_iter'][n] = log_reg_shuffled.n_iter_[0]
+
+        models['parameters'][n] = model_params
+        models['fold_number'][n] = n
+    
+    return models
