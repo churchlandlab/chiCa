@@ -50,7 +50,7 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
     '''
     import numpy as np
                                                 
-    state_start_frame = [None] * len(trialdata) #The frame that covers the start of
+    state_start_frame = np.zeros([len(trialdata)]) #The frame that covers the start of
     state_time_covered = np.zeros([len(trialdata)]) #The of the side that has been covered by the frame
     
     for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
@@ -138,8 +138,8 @@ def balance_dataset(label, secondary_label = None):
                      
     Examples
     --------
-    pick_to_balance = balance_dataset(label, secondary_label) #Balance by the two variables
-    pick_to_balance = balance_dataset(label) #Balance for classes in label only
+    pick_to_balance, sample_num = balance_dataset(label, secondary_label) #Balance by the two variables
+    pick_to_balance, sample_num = balance_dataset(label) #Balance for classes in label only
     '''
     
     import numpy as np
@@ -262,3 +262,69 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
         models['fold_number'][n] = n
     
     return models
+
+#%%---Pipeline for training a set of balanced models with multiple rounds of subsampling
+def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, **kwargs):
+    '''Pipeline for training a set of logistic regression models and performing
+    shuffles on data that has to be balanced. The models are fit for a set 
+    amount of repetitions of the subsampling procedure used to balance the class
+    labels.
+    
+    Parameters
+    ----------
+    data: numpy array, rows are observations and columns are features.
+    labels: numpy array, vector of lables for the corresponding observations.
+    k_folds: int, number of folds to perform cross-validation on
+    subsampling_rounds: int, specifies the number of times the subsampling 
+                        procedure will be repeated.
+                        
+    The following kwargs are handled:
+    secondary_lables: numpy array, vector of additional class labels
+    model_params: dict, specifies model parameters. The keys are: penalty 
+                  (the type of regularization to be applied),
+                  inverse_regularization_strength, solver 
+                  
+    Returns
+    -------
+    log_reg_models: pandas dataframe, results of the model fitting.
+    
+    Examples
+    --------
+    log_reg_models = balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, secondary_labels = secondary_labels, model_params = model_params)
+    log_reg_models = balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds)
+    
+    '''
+    
+    import numpy as np
+    import pandas as pd
+    import time
+    
+    #Start setting the defaults
+    secondary_labels = None 
+    model_params = None 
+    
+    #Now check for these defaults in the kwargs and overwrite if necessary
+    for key,val in kwargs.items():
+            exec(key + '=val')
+
+    #Get a time estimate for all the fitting
+    exe_start = time.time()
+    
+    log_reg_models = pd.DataFrame()
+    
+    for s in range(subsampling_rounds):
+        pick_to_balance, _ = balance_dataset(labels, secondary_labels) #If the secondary label is None it will not be considered
+        models = train_logistic_regression(data[pick_to_balance,:], labels[pick_to_balance], k_folds, model_params)
+        
+        models['subsampling_round'] = np.ones(models.shape[0]) * s #Add a column with the run of subsampling performed
+        log_reg_models = pd.concat([log_reg_models, models])
+    
+    #Stop the time and print
+    exe_stop = time.time()
+    print(f'Did logistic model fits with {k_folds} folds, subsampling from majority class {subsampling_rounds} times in {round(exe_stop - exe_start)} seconds.')
+    print('-------------------------------------------------------------------')
+    
+    
+    return log_reg_models
+    
+    
