@@ -19,7 +19,7 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     import decoding_utils
     #%%-----Gather all the user specified values
     
-    use_name = 'choice_during_stimulus_period'
+    use_name = 'choice_balanced_for_prior_choice_during_stimulus_period'
     session_dir = 'C:/data/LO032/20220215_114758' #Can also be None
     #session_dir = None
     signal_type = 'c' #The type of traces to be used for decoding c = denoised, s = inferred spikes, f = detrended raw fluorescence
@@ -31,8 +31,8 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     #weight the prior frames a little more strongly
     label_name = 'response_side' #The column name of the label in the trialdata dataframe
     label_trials_back = 0 #How many consecutive trials back the label should be looked at
-    secondary_label_name = None #The column name of the secondary label in the trialdata dataframe
-    secondary_label_trials_back = 0 #How many trials back the secondary lable should be considered
+    secondary_label_name = 'response_side' #The column name of the secondary label in the trialdata dataframe
+    secondary_label_trials_back = 1 #How many trials back the secondary lable should be considered
     k_folds = 10 #Folds for cross-validation
     subsampling_rounds = 100 #Re-drawing of samples from majority class
     model_params = None #Possibility to specify model parameters here
@@ -58,12 +58,35 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     #%%-----Start arranging the data
     
     #Get the labels
-    valid_trials = np.array(np.isnan(trialdata['response_side']) == 0)
-    labels = np.array(trialdata[label_name][valid_trials])
-    if secondary_label_name is not None:
-        secondary_labels = np.array(trialdata[secondary_label_name][valid_trials])
+    valid_trials = np.array(np.isnan(trialdata['response_side']) == 0) #Here related to valid trials in present time
+    #When one of the labels represents a trial in the past
+    if (label_trials_back > 0) or (secondary_label_trials_back > 0): #If one of these looks at a trial in the past one needs to redefine the trials to include
+        if label_trials_back > 0:
+            temp_labels = decoding_utils.determine_prior_variable(np.array(trialdata[label_name]), valid_trials, label_trials_back)
+        else:
+            temp_labels = np.array(trialdata[label_name])
+        
+        if (secondary_label_trials_back > 0) and (secondary_label_name is not None):
+            temp_secondary_labels = decoding_utils.determine_prior_variable(np.array(trialdata[secondary_label_name]), valid_trials, secondary_label_trials_back)
+        else:
+            temp_secondary_labels = temp_labels #Only used to find valid trials here
+        
+        valid_trials = (np.isnan(temp_labels) == 0) & (np.isnan(temp_secondary_labels) == 0) #Refering now to all the trials, for which valid label combinations exist
+        
+        labels = temp_labels[valid_trials]
+        if secondary_label_name is not None:
+            secondary_labels = temp_secondary_labels[valid_trials]
+        else:
+            secondary_labels = None
+            
+    #The case where no past labels are used        
     else:
-        secondary_labels = None
+        labels = np.array(trialdata[label_name][valid_trials])
+        if secondary_label_name is not None:
+            secondary_labels = np.array(trialdata[secondary_label_name][valid_trials])
+        else:
+            secondary_labels = None
+
     
     #Standardize the input signal
     if signal_type == 'c':
@@ -99,7 +122,7 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     start_parallel = time.time() #Measure the time
     par_pool = mp.Pool(mp.cpu_count())
     output_models = par_pool.starmap(decoding_utils.balanced_logistic_model_training,
-                                 [(data, labels ,k_folds, subsampling_rounds,
+                                 [(data, labels ,k_folds, subsampling_rounds, secondary_labels, model_params
                                    ) for data in data_list])
 
     par_pool.close()

@@ -97,7 +97,7 @@ def determine_prior_variable(tracked_variable, valid_trials, consecutive_trials_
                  
     Examples
     --------
-    prior_label = determine_prior_variable(tracked_variable, valid_trials, consecutive_trials_back=1)
+    prior_label = determine_prior_variable(tracked_variable, valid_trials, consecutive_trials_back)
     prior_label = determine_prior_variable(tracked_variable, valid_trials)
     '''
     
@@ -113,7 +113,7 @@ def determine_prior_variable(tracked_variable, valid_trials, consecutive_trials_
     return prior_label
 
 #%%-----------Balance the data sets for top level variable and subvariable
-def balance_dataset(label, secondary_label = None):
+def balance_dataset(labels, secondary_labels = None):
     '''Balance the number of observaitions for each class in the dataset by
     subsampling from the majority classes while retaining all observations of 
     the minority class. This function offers the option to balance for two
@@ -124,9 +124,9 @@ def balance_dataset(label, secondary_label = None):
     
     Parameters
     ----------
-    label: numpy array, vector of the class labels of the data. Nans will be
+    labels: numpy array, vector of the class labels of the data. Nans will be
            ignored.
-    secondary_label: numpy array, vector of additional class labels, default = None
+    secondary_labels: numpy array, vector of additional class labels, default = None
     
     Returns
     -------
@@ -138,36 +138,36 @@ def balance_dataset(label, secondary_label = None):
                      
     Examples
     --------
-    pick_to_balance, sample_num = balance_dataset(label, secondary_label) #Balance by the two variables
-    pick_to_balance, sample_num = balance_dataset(label) #Balance for classes in label only
+    pick_to_balance, sample_num = balance_dataset(labels, secondary_labels) #Balance by the two variables
+    pick_to_balance, sample_num = balance_dataset(labels) #Balance for classes in label only
     '''
     
     import numpy as np
     
-    classes = np.unique(label)
+    classes = np.unique(labels)
     classes = classes[np.isnan(classes)==0] #Determine the classes in the labels and exclude nans
     
-    if secondary_label is None:    
-        class_counts = np.array([np.sum(label==classes[n]) for n in range(classes.shape[0])])
+    if secondary_labels is None:    
+        class_counts = np.array([np.sum(labels==classes[n]) for n in range(classes.shape[0])])
         #Convoluted code: sum up all the labels falling under one class for the two different classes
         sample_num = int(np.min(class_counts)) #Define how many sample per class to retain
         
         #Start assembling the indices for balancing the classes
         pick_to_balance = np.array([], dtype=int)
         for n in range(0, classes.shape[0]):
-            temp_permuted = np.random.permutation(np.where(label==classes[n])[0]) #Also permute minority class to make it more general
+            temp_permuted = np.random.permutation(np.where(labels==classes[n])[0]) #Also permute minority class to make it more general
             pick_to_balance = np.hstack((pick_to_balance, temp_permuted[0:sample_num]))
         
               
-    elif secondary_label is not None:
+    elif secondary_labels is not None:
         #If one needs to balance a subclass inside the labels do the same thing again
-        subclasses = np.unique(secondary_label)
+        subclasses = np.unique(secondary_labels)
         subclasses = subclasses[np.isnan(subclasses)==0] #Determine the classes in the labels and exclude nans
     
         subclass_counts = np.zeros([subclasses.shape[0], classes.shape[0]]) #Generate a matrix with subclass counts (in rows) by class labels (in columns)
         for k in range(classes.shape[0]):
             for n in range(subclasses.shape[0]):
-                subclass_counts[n,k] = np.sum(secondary_label[label==classes[k]]==subclasses[n])
+                subclass_counts[n,k] = np.sum(secondary_labels[labels==classes[k]]==subclasses[n])
                 #Within the specified class sum up all the secondary_labels that correspond to a particular subclass
                 
         sample_num = int(np.min(subclass_counts))
@@ -176,7 +176,7 @@ def balance_dataset(label, secondary_label = None):
         pick_to_balance = np.array([], dtype=int)
         for k in range(0, classes.shape[0]):
             for n in range(0,subclasses.shape[0]):
-                temp_permuted = np.random.permutation(np.where((label==classes[k]) & (secondary_label==subclasses[n]))[0])             
+                temp_permuted = np.random.permutation(np.where((labels==classes[k]) & (secondary_labels==subclasses[n]))[0])             
                 pick_to_balance = np.hstack((pick_to_balance, temp_permuted[0:sample_num]))
 
     return pick_to_balance, sample_num
@@ -264,7 +264,7 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
     return models
 
 #%%---Pipeline for training a set of balanced models with multiple rounds of subsampling
-def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, **kwargs):
+def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, secondary_labels, model_params):
     '''Pipeline for training a set of logistic regression models and performing
     shuffles on data that has to be balanced. The models are fit for a set 
     amount of repetitions of the subsampling procedure used to balance the class
@@ -277,8 +277,6 @@ def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, 
     k_folds: int, number of folds to perform cross-validation on
     subsampling_rounds: int, specifies the number of times the subsampling 
                         procedure will be repeated.
-                        
-    The following kwargs are handled:
     secondary_lables: numpy array, vector of additional class labels
     model_params: dict, specifies model parameters. The keys are: penalty 
                   (the type of regularization to be applied),
@@ -299,13 +297,13 @@ def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, 
     import pandas as pd
     import time
     
-    #Start setting the defaults
-    secondary_labels = None 
-    model_params = None 
+    # #Start setting the defaults
+    # secondary_labels = None 
+    # model_params = None 
     
-    #Now check for these defaults in the kwargs and overwrite if necessary
-    for key,val in kwargs.items():
-            exec(key + '=val')
+    # #Now check for these defaults in the kwargs and overwrite if necessary
+    # for key,val in kwargs.items():
+    #         exec(key + '=val')
 
     #Get a time estimate for all the fitting
     exe_start = time.time()
