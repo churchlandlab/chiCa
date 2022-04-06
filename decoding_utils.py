@@ -222,9 +222,13 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
         #Re-create the model_params to store the defaults 
         
     elif model_params is not None:
-        for key,val in model_params.items():
-            exec(key + '=val')
-            
+        penalty = model_params['penalty']
+        inverse_regularization_strength = model_params['inverse_regularization_strength']
+        solver = model_params['solver']
+        # Mysteriously this loop does not work inside the function
+        # for key,val in model_params.items():
+        #     exec(key + '=val')
+       
     #Set up the dataframe to store the training outputs 
     models = pd.DataFrame(columns=['model_accuracy', 'model_coefficients', 'model_intercept', 'model_n_iter', 
                                    'shuffle_accuracy', 'shuffle_coefficients', 'shuffle_intercept', 'shuffle_n_iter',

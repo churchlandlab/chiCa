@@ -19,20 +19,20 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     import decoding_utils
     #%%-----Gather all the user specified values
     
-    use_name = 'choice_balanced_for_prior_choice_during_stimulus_period'
+    use_name = 'xx'
     session_dir = 'C:/data/LO032/20220215_114758' #Can also be None
     #session_dir = None
     signal_type = 'c' #The type of traces to be used for decoding c = denoised, s = inferred spikes, f = detrended raw fluorescence
-    aligned_state = 'PlayStimulus' #State to align to 
-    decoder_range = [0, 20] #The range of frames from the alignment time point that should be included,
+    aligned_state = 'DemonReward' #State to align to 
+    decoder_range = [0, 1] #The range of frames from the alignment time point that should be included,
     #python style lower inclusive, upper exclusive, thus one frame would be [0,1]
     window_size = 1 #The size of the sliding window
     #CAUTION: Only odd-numbered windows symmetrically distribute the activity data. Even-numbered windows
     #weight the prior frames a little more strongly
-    label_name = 'response_side' #The column name of the label in the trialdata dataframe
+    label_name = 'outcome' #The column name of the label in the trialdata dataframe
     label_trials_back = 0 #How many consecutive trials back the label should be looked at
     secondary_label_name = 'response_side' #The column name of the secondary label in the trialdata dataframe
-    secondary_label_trials_back = 1 #How many trials back the secondary lable should be considered
+    secondary_label_trials_back = 0 #How many trials back the secondary lable should be considered
     k_folds = 10 #Folds for cross-validation
     subsampling_rounds = 100 #Re-drawing of samples from majority class
     model_params = None #Possibility to specify model parameters here
@@ -57,6 +57,28 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     
     #%%-----Start arranging the data
     
+    #--------------TEMPORARY-----------------------------------------
+    #Add a generic outcome state and a column for what kind of outcome
+    if ((aligned_state == 'DemonReward') or (aligned_state == 'DemonWrongChoice')) or (label_name == 'outcome'):
+        outcome_timing = []
+        outcome = np.zeros([trialdata.shape[0]]) * np.nan
+        for k in range(trialdata.shape[0]):
+            if np.isnan(trialdata['DemonReward'][k][0]) == 0:
+                outcome_timing.append(np.array([trialdata['DemonReward'][k][0]]))
+                outcome[k] = 1
+            elif np.isnan(trialdata['DemonWrongChoice'][k][0]) == 0:
+                outcome_timing.append(np.array([trialdata['DemonWrongChoice'][k][0]]))
+                outcome[k] = -1
+            else:
+                outcome_timing.append(np.array([np.nan]))
+        trialdata.insert(trialdata.shape[1], 'OutcomePresentation', outcome_timing)
+        trialdata.insert(trialdata.shape[1], 'outcome', outcome)
+        
+    #pretty ugly:
+        if (aligned_state == 'DemonReward') or (aligned_state == 'DemonWrongChoice'):
+            aligned_state = 'OutcomePresentation'
+    #--------------------------
+    
     #Get the labels
     valid_trials = np.array(np.isnan(trialdata['response_side']) == 0) #Here related to valid trials in present time
     #When one of the labels represents a trial in the past
@@ -69,7 +91,7 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
         if (secondary_label_trials_back > 0) and (secondary_label_name is not None):
             temp_secondary_labels = decoding_utils.determine_prior_variable(np.array(trialdata[secondary_label_name]), valid_trials, secondary_label_trials_back)
         else:
-            temp_secondary_labels = temp_labels #Only used to find valid trials here
+            temp_secondary_labels = np.array(trialdata[secondary_label_name]) #Only used to find valid trials here
         
         valid_trials = (np.isnan(temp_labels) == 0) & (np.isnan(temp_secondary_labels) == 0) #Refering now to all the trials, for which valid label combinations exist
         
