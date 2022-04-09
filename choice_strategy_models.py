@@ -34,6 +34,7 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     
 #%%-----Prepare the data
 
+#Extract choice and correct side information and compute outcome
 response_side = np.array(trialdata['response_side'])
 correct_side = np.array(trialdata['correct_side'])
 valid_trials = np.isnan(response_side)==0
@@ -41,12 +42,15 @@ valid_trials = np.isnan(response_side)==0
 outcome = np.squeeze(np.array([response_side == correct_side], dtype=float))
 outcome[np.isnan(response_side)] = np.nan
 
+#Find choices and outcomes from previous trial
 prior_response = decoding_utils.determine_prior_variable(response_side, valid_trials, 1)
 prior_outcome = decoding_utils.determine_prior_variable(outcome, valid_trials, 1)
 
+#Task parameters, should be automatized eventually
 contingency_multiplier = 1 #Use this one to switch the stimulus sign when the left side is the high rate side
 category_boundary = 12
 
+#Find the prior trial's successes and failures and the relative signed stimulus strength
 prior_right_success = np.zeros([trialdata.shape[0]]) * np.nan
 prior_right_failure = np.zeros([trialdata.shape[0]]) * np.nan
 signed_stim_strength = np.zeros([trialdata.shape[0]]) * np.nan
@@ -69,9 +73,11 @@ for k in range(trialdata.shape[0]):
                 prior_right_failure[k] = -1
         signed_stim_strength[k] = contingency_multiplier * (trialdata['stimulus_event_timestamps'][k].shape[0] - category_boundary)
 
-intercept = np.ones([trialdata.shape[0]])
+intercept = np.ones([trialdata.shape[0]]) #Explicitly fit an intercept term to check for general right side biases
 
 valid_trials = np.isnan(prior_right_success)==0
+
+#Build the design matrix with, in order: bias term, signed stim strength, prior success (1 = on right, -1 = on left, 0 = failure), prior failure
 data = np.transpose(np.vstack((intercept[valid_trials], signed_stim_strength[valid_trials], prior_right_success[valid_trials], prior_right_failure[valid_trials])))
 labels = response_side[valid_trials]
 
@@ -89,3 +95,8 @@ subsampling_rounds = 100
 
 #Fit the model
 choice_strategy_models = decoding_utils.balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, secondary_labels, model_params)
+
+
+#%%-----Separately compute stay probability
+
+stay_probability = (np.sum(response_side[valid_trials] == prior_response[valid_trials]))/np.sum(valid_trials)

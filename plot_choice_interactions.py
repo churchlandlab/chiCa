@@ -21,12 +21,13 @@ state_start_frame = state_time_stamps(align_to_state, trialdata, average_interva
 aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
 
 prior_choice =  determine_prior_variable(np.array(trialdata['response_side']))
+prior_category =  determine_prior_variable(np.array(trialdata['correct_side']))
 
 outcome = np.array(trialdata['response_side'] == trialdata['correct_side'], dtype=float) #Define as float so that nans (that are float) can be retained
 outcome[np.array(np.isnan(trialdata['response_side']))] = np.nan
 prior_outcome =  determine_prior_variable(outcome)
 
-color_specs = ['#FC7659','#b20707','#ABBAFF','#062999']
+color_specs = ['#FC7659','#b20707','#ABBAFF','#062999' ]
 
 fig_prev= plt.figure(figsize=(12, 8))
 fig_prev.suptitle(f'Cell number {current_neuron} aligned to {align_to_state}')
@@ -261,4 +262,58 @@ y_lims = np.array([np.min(tmp[:,0]), np.max(tmp[:,1])])
 for k in range(len(spAx)):
     opAx[k].set_ylim(y_lims)
 del y_lims
+
+#%%--------Further subdivide the traces into prior choice by category 
+
+color_specs = ['#b20707','#ABBAFF','#FC7659','#062999']
+
+possibilities = np.array([[1,1],[1,0],[0,1],[0,0]])
+#Possibile combinations to balance
+subplot_titles = ['Upcoming correct right choice', 'Upcoming incorrect left choice',
+               'Upcoming incorrect right choice', 'Upcoming correct left choice']
+
+line_labels = ['Prior right category and right choice', 'Prior right category and left choice',
+               'Prior left category and right choice', 'Prior left category and left choice']
+x_label_string = 'Seconds from stimulus onset'
+
+fig_pat_cat_choice = plt.figure(figsize=(15, 9))
+fig_pat_cat_choice.suptitle(f'Cell number {current_neuron} aligned to {align_to_state}')
+pat_cat = [None] * 4
+
+
+for k in range(possibilities.shape[0]):
+    pat_cat[k] = fig_pat_cat_choice.add_subplot(2,2,k+1)
+    grouping_variable = np.squeeze(np.array([(trialdata['response_side']==possibilities[k,0]) & (trialdata['correct_side']==possibilities[k,1])])) #Squeeze the second dimension
+    
+    splits = []
+    for n in range(possibilities.shape[0]):
+        splits.append(np.where(((prior_category == possibilities[n,0]) & (prior_choice== possibilities[n,1])) & (grouping_variable==1))[0])
+        
+        if np.any(splits[n]):
+            tmp_mean = np.nanmean(aligned_signal[:,splits[n]], axis=1)
+            tmp_sem = np.nanstd(aligned_signal[:,splits[n]], axis=1)/np.sqrt(np.sum(np.isnan(aligned_signal[0,splits[n]])==0))
+ 
+            pat_cat[k].fill_between(x_vect, tmp_mean-tmp_sem, tmp_mean+tmp_sem , color=color_specs[n], alpha=0.2) 
+            pat_cat[k].plot(x_vect, tmp_mean, color=color_specs[n], label= line_labels[n] + f', {splits[n].shape[0]} trials')  #Right in red
+            pat_cat[k].axvline(0, color='k', linestyle='--')
+            
+            
+    pat_cat[k].set_xlabel(x_label_string)
+    pat_cat[k].set_ylabel('Fluorescence intensity (A.U.)')
+    pat_cat[k].set_title(subplot_titles[k])
+    pat_cat[k].legend(loc='best')
+
+#Adjust y-axis limtis
+tmp = np.zeros([4,2]) 
+for k in range(len(pat_cat)):
+     tmp[k,:] = pat_cat[k].get_ylim()
+
+y_lims = np.array([np.min(tmp[:,0]), np.max(tmp[:,1])])
+for k in range(len(pat_cat)):
+    pat_cat[k].set_ylim(y_lims)
+del y_lims
+
+
+
+
 
