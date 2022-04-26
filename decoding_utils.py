@@ -232,10 +232,10 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
     #Set up the dataframe to store the training outputs 
     models = pd.DataFrame(columns=['model_accuracy', 'model_coefficients', 'model_intercept', 'model_n_iter', 
                                    'shuffle_accuracy', 'shuffle_coefficients', 'shuffle_intercept', 'shuffle_n_iter',
-                                   'parameters', 'fold_number'],
+                                   'parameters', 'fold_number','number_of_samples'],
                           index=range(0, k_folds))
             
-    skf = StratifiedKFold(n_splits = k_folds) #Use stratified cross-validation to make sure 
+    skf = StratifiedKFold(n_splits = k_folds, shuffle = True) #Use stratified cross-validation to make sure 
     #that the folds are balanced themselves and that the training and validation is 
     #stable.
     skf.get_n_splits(data, labels)
@@ -264,6 +264,7 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
 
         models['parameters'][n] = model_params
         models['fold_number'][n] = n
+        models['number_of_samples'][n]= X_train.shape[0]
     
     return models
 

@@ -26,14 +26,14 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     #session_dir = None
     signal_type = 'c' #The type of traces to be used for decoding c = denoised, s = inferred spikes, f = detrended raw fluorescence
     aligned_state = 'PlayStimulus' #State to align to 
-    decoder_range = [-5, 21] #The range of frames from the alignment time point that should be included,
+    decoder_range = [-5, 25] #The range of frames from the alignment time point that should be included,
     #python style lower inclusive, upper exclusive, thus one frame would be [0,1]
     window_size = 1 #The size of the sliding window
     #CAUTION: Only odd-numbered windows symmetrically distribute the activity data. Even-numbered windows
     #weight the prior frames a little more strongly
-    label_name = 'response_side' #The column name of the label in the trialdata dataframe
+    label_name = 'correct_side' #The column name of the label in the trialdata dataframe
     label_trials_back = 1 #How many consecutive trials back the label should be looked at
-    secondary_label_name = 'correct_side' #The column name of the secondary label in the trialdata dataframe
+    secondary_label_name = 'response_side' #The column name of the secondary label in the trialdata dataframe
     secondary_label_trials_back = 1 #How many trials back the secondary lablel should be considered
     k_folds = 10 #Folds for cross-validation
     subsampling_rounds = 100 #Re-drawing of samples from majority class
@@ -61,7 +61,7 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     
     #--------------TEMPORARY-----------------------------------------
     #Add a generic outcome state and a column for what kind of outcome
-    if ((aligned_state == 'DemonReward') or (aligned_state == 'DemonWrongChoice')) or (label_name == 'outcome'):
+    if ((aligned_state == 'DemonReward') or (aligned_state == 'DemonWrongChoice')) or ((label_name == 'outcome') or (secondary_label_name == 'outcome')):
         outcome_timing = []
         outcome = np.zeros([trialdata.shape[0]]) * np.nan
         for k in range(trialdata.shape[0]):
@@ -89,11 +89,14 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
             temp_labels = decoding_utils.determine_prior_variable(np.array(trialdata[label_name]), valid_trials, label_trials_back)
         else:
             temp_labels = np.array(trialdata[label_name])
-        
-        if (secondary_label_trials_back > 0) and (secondary_label_name is not None):
-            temp_secondary_labels = decoding_utils.determine_prior_variable(np.array(trialdata[secondary_label_name]), valid_trials, secondary_label_trials_back)
+        if secondary_label_name is not None:
+            if secondary_label_trials_back > 0:
+                temp_secondary_labels = decoding_utils.determine_prior_variable(np.array(trialdata[secondary_label_name]), valid_trials, secondary_label_trials_back)
+            else:
+                temp_secondary_labels = np.array(trialdata[secondary_label_name])
         else:
-            temp_secondary_labels = np.array(trialdata[secondary_label_name]) #Only used to find valid trials here
+            temp_secondary_labels = np.array(trialdata[label_name])
+            #The above is just a dummy expression to be able to compare the temps below
         
         valid_trials = (np.isnan(temp_labels) == 0) & (np.isnan(temp_secondary_labels) == 0) #Refering now to all the trials, for which valid label combinations exist
         
@@ -171,7 +174,7 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
         if secondary_label_name is None:
             output_name = session_dir + '/decoding/' + label_name + '_' + str(label_trials_back) + '_trials_back_aligned_to_' + aligned_state + '.h5'
         else:
-            output_name = session_dir + '/decoding/' + label_name + '_' + str(label_trials_back) + secondary_label_name + '_balanced_by' + str(secondary_label_trials_back) + '_trials_back_aligned_to_' + aligned_state + '.h5'  
+            output_name = session_dir + '/decoding/' + label_name + '_' + str(label_trials_back) +  '_trials_back_balanced_by_' + secondary_label_name + '_' + str(secondary_label_trials_back) + '_trials_back_aligned_to_' + aligned_state + '.h5'  
     else:
         output_name = session_dir + '/decoding/' + use_name + '.h5'
         
