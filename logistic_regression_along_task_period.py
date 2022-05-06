@@ -26,7 +26,7 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     #session_dir = None
     signal_type = 'c' #The type of traces to be used for decoding c = denoised, s = inferred spikes, f = detrended raw fluorescence
     aligned_state = 'PlayStimulus' #State to align to 
-    decoder_range = [-5, 25] #The range of frames from the alignment time point that should be included,
+    decoder_range = [-40, 81] #The range of frames from the alignment time point that should be included,
     #python style lower inclusive, upper exclusive, thus one frame would be [0,1]
     window_size = 1 #The size of the sliding window
     #CAUTION: Only odd-numbered windows symmetrically distribute the activity data. Even-numbered windows
@@ -136,7 +136,7 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     #the center of the window is the aligned frame, in even-numbered ones the aligned frame follows 
     #the middle.
     data_list = []
-    for add_to in np.arange(decoder_range[0], decoder_range[1]):
+    for add_to in np.arange((decoder_range[1] - decoder_range[0])):
         tmp = np.zeros([zero_frame.shape[0],signal.shape[1]]) * np.nan
         for k in range(zero_frame.shape[0]):
             temp = signal[zero_frame[k] + add_to - half_window[0] : zero_frame[k] + add_to + half_window[1],:]

@@ -7,121 +7,122 @@ Created on Tue Apr  5 16:47:08 2022
 
 
 #if __name__ == '__main__': #This part is required for using multiprocessing within this script. Why?
-
-import numpy as np
-import pandas as pd
-import multiprocessing as mp #To run the model fitting in parallel
-from tkinter import Tk #For interactive selection, this part is only used to withdraw() the little selection window once the selection is done.
-import tkinter.filedialog as filedialog
-import glob #To pick files of a specified type
-import time
-from os.path import isdir
-from os import mkdir    
-import decoding_utils
-
-#%%-----Load the data etc.
-
-#session_dir = 'C:/data/LO032/20220218_113904' #Can also be None
-#Select the directory
-if session_dir is None:
-    Tk().withdraw() #Don't show the tiny confirmation window
-    session_dir = filedialog.askdirectory()
+def choice_strategy(session_dir):
+    '''xxx'''
+    import numpy as np
+    import pandas as pd
+    import multiprocessing as mp #To run the model fitting in parallel
+    from tkinter import Tk #For interactive selection, this part is only used to withdraw() the little selection window once the selection is done.
+    import tkinter.filedialog as filedialog
+    import glob #To pick files of a specified type
+    import time
+    from os.path import isdir
+    from os import mkdir    
+    import decoding_utils
     
-#Load the dataframe
-trialdata = pd.read_hdf(glob.glob(session_dir + '/trial_alignment/*.h5')[0], '/Data')
-#This might need to be adapted if more hdf5 files are added to the alignment directory
-#or if the trial alignment changes its location...
-
-#%%-----Prepare the data
-
-#Extract choice and correct side information and compute outcome
-response_side = np.array(trialdata['response_side'])
-correct_side = np.array(trialdata['correct_side'])
-valid_trials = np.isnan(response_side)==0
+    #%%-----Load the data etc.
     
-outcome = np.squeeze(np.array([response_side == correct_side], dtype=float))
-outcome[np.isnan(response_side)] = np.nan
-
-#Find choices and outcomes from previous trial
-prior_response = decoding_utils.determine_prior_variable(response_side, valid_trials, 1)
-prior_outcome = decoding_utils.determine_prior_variable(outcome, valid_trials, 1)
-prior_category = decoding_utils.determine_prior_variable(correct_side, valid_trials, 1)
-
-#Task parameters, should be automatized eventually
-contingency_multiplier = 1 #Use this one to switch the stimulus sign when the left side is the high rate side
-category_boundary = 12
-
-#Find the prior trial's successes and failures and the relative signed stimulus strength
-prior_right_success = np.zeros([trialdata.shape[0]]) * np.nan
-prior_right_failure = np.zeros([trialdata.shape[0]]) * np.nan
-signed_stim_strength = np.zeros([trialdata.shape[0]]) * np.nan
-
-for k in range(trialdata.shape[0]):
-    if np.isnan(prior_response[k]) == 0:
-        if prior_response[k] == 1:
-            if prior_outcome[k] == 1:
-                prior_right_success[k] = 1
-                prior_right_failure[k] = 0
-            elif prior_outcome[k] == 0:
-                prior_right_success[k] = 0
-                prior_right_failure[k] = 1
-        elif prior_response[k] == 0:
-            if prior_outcome[k] == 1:
-                prior_right_success[k] = -1
-                prior_right_failure[k] = 0
-            elif prior_outcome[k] == 0:
-                prior_right_success[k] = 0
-                prior_right_failure[k] = -1
-        signed_stim_strength[k] = contingency_multiplier * (trialdata['stimulus_event_timestamps'][k].shape[0] - category_boundary)
-
-intercept = np.ones([trialdata.shape[0]]) #Explicitly fit an intercept term to check for general right side biases
-
-valid_trials = np.isnan(prior_right_success)==0
-
-#Build the design matrix with, in order: bias term, signed stim strength, prior success (1 = on right, -1 = on left, 0 = failure), prior failure
-data = np.transpose(np.vstack((intercept[valid_trials], signed_stim_strength[valid_trials], prior_right_success[valid_trials], prior_right_failure[valid_trials])))
-labels = response_side[valid_trials]
-
-#%%-------------------Fit the model
-
-#Define the model parameters
-penalty='none' 
-inverse_regularization_strength = 1 
-solver='newton-cg'
-model_params = {'penalty': penalty, 'inverse_regularization_strength': inverse_regularization_strength, 'solver': solver}
-
-k_folds = 10
-secondary_labels = None 
-subsampling_rounds = 100 
-
-#Fit the model
-choice_strategy_models = decoding_utils.balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, secondary_labels, model_params)
-
-
-#%%-----Separately compute stay probability
-
-stay_probability = (np.sum(response_side[valid_trials] == prior_response[valid_trials]))/np.sum(valid_trials)
-
-match_prev_cat = (np.sum(response_side[valid_trials] == prior_category[valid_trials]))/np.sum(valid_trials)
-
-
-#%%----Calculate the probability that the trial following a completed trial will
-# be an early withdrawal if it is aligned with a win-stay or if it is the opposite strategy
-
-early_withdrawal_if_opposite = np.zeros(response_side.shape[0])* np.nan
-early_withdrawal_if_same = np.zeros(response_side.shape[0])* np.nan
-
-for k in range(1,early_withdrawal_if_opposite.shape[0]):
-    if (np.isnan(response_side[k-1]) ==0) and (correct_side[k] == correct_side[k-1]) and (np.isnan(trialdata['DemonEarlyWithdrawal'][k][0]) == 1 ):
-        early_withdrawal_if_same[k] = 0
-    elif (np.isnan(response_side[k-1]) ==0)  and (correct_side[k] == correct_side[k-1]) and (np.isnan(trialdata['DemonEarlyWithdrawal'][k][0]) == 0 ):
-        early_withdrawal_if_same[k] = 1
+    #session_dir = 'C:/data/LO032/20220218_113904' #Can also be None
+    #Select the directory
+    if session_dir is None:
+        Tk().withdraw() #Don't show the tiny confirmation window
+        session_dir = filedialog.askdirectory()
         
-    if (np.isnan(response_side[k-1])==0) and (correct_side[k] != correct_side[k-1]) and (np.isnan(trialdata['DemonEarlyWithdrawal'][k][0]) == 1 ):
-        early_withdrawal_if_opposite[k] = 0
-    elif (np.isnan(response_side[k-1]) ==0) and (correct_side[k] != correct_side[k-1]) and (np.isnan(trialdata['DemonEarlyWithdrawal'][k][0]) == 0 ):
-        early_withdrawal_if_opposite[k] = 1
-
+    #Load the dataframe
+    trialdata = pd.read_hdf(glob.glob(session_dir + '/trial_alignment/*.h5')[0], '/Data')
+    #This might need to be adapted if more hdf5 files are added to the alignment directory
+    #or if the trial alignment changes its location...
+    
+    #%%-----Prepare the data
+    
+    #Extract choice and correct side information and compute outcome
+    response_side = np.array(trialdata['response_side'])
+    correct_side = np.array(trialdata['correct_side'])
+    valid_trials = np.isnan(response_side)==0
+        
+    outcome = np.squeeze(np.array([response_side == correct_side], dtype=float))
+    outcome[np.isnan(response_side)] = np.nan
+    
+    #Find choices and outcomes from previous trial
+    prior_response = decoding_utils.determine_prior_variable(response_side, valid_trials, 1)
+    prior_outcome = decoding_utils.determine_prior_variable(outcome, valid_trials, 1)
+    prior_category = decoding_utils.determine_prior_variable(correct_side, valid_trials, 1)
+    
+    #Task parameters, should be automatized eventually
+    contingency_multiplier = 1 #Use this one to switch the stimulus sign when the left side is the high rate side
+    category_boundary = 12
+    
+    #Find the prior trial's successes and failures and the relative signed stimulus strength
+    prior_right_success = np.zeros([trialdata.shape[0]]) * np.nan
+    prior_right_failure = np.zeros([trialdata.shape[0]]) * np.nan
+    signed_stim_strength = np.zeros([trialdata.shape[0]]) * np.nan
+    
+    for k in range(trialdata.shape[0]):
+        if np.isnan(prior_response[k]) == 0:
+            if prior_response[k] == 1:
+                if prior_outcome[k] == 1:
+                    prior_right_success[k] = 1
+                    prior_right_failure[k] = 0
+                elif prior_outcome[k] == 0:
+                    prior_right_success[k] = 0
+                    prior_right_failure[k] = 1
+            elif prior_response[k] == 0:
+                if prior_outcome[k] == 1:
+                    prior_right_success[k] = -1
+                    prior_right_failure[k] = 0
+                elif prior_outcome[k] == 0:
+                    prior_right_success[k] = 0
+                    prior_right_failure[k] = -1
+            signed_stim_strength[k] = contingency_multiplier * (trialdata['stimulus_event_timestamps'][k].shape[0] - category_boundary)
+    
+    intercept = np.ones([trialdata.shape[0]]) #Explicitly fit an intercept term to check for general right side biases
+    
+    valid_trials = np.isnan(prior_right_success)==0
+    
+    #Build the design matrix with, in order: bias term, signed stim strength, prior success (1 = on right, -1 = on left, 0 = failure), prior failure
+    data = np.transpose(np.vstack((intercept[valid_trials], signed_stim_strength[valid_trials], prior_right_success[valid_trials], prior_right_failure[valid_trials])))
+    labels = response_side[valid_trials]
+    
+    #%%-------------------Fit the model
+    
+    #Define the model parameters
+    penalty='none' 
+    inverse_regularization_strength = 1 
+    solver='newton-cg'
+    model_params = {'penalty': penalty, 'inverse_regularization_strength': inverse_regularization_strength, 'solver': solver}
+    
+    k_folds = 10
+    secondary_labels = None 
+    subsampling_rounds = 100 
+    
+    #Fit the model
+    choice_strategy_models = decoding_utils.balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, secondary_labels, model_params)
+    
+    
+    #%%-----Separately compute stay probability
+    
+    stay_probability = (np.sum(response_side[valid_trials] == prior_response[valid_trials]))/np.sum(valid_trials)
+    
+    match_prev_cat = (np.sum(response_side[valid_trials] == prior_category[valid_trials]))/np.sum(valid_trials)
+    
+    
+    #%%----Calculate the probability that the trial following a completed trial will
+    # be an early withdrawal if it is aligned with a win-stay or if it is the opposite strategy
+    
+    early_withdrawal_if_opposite = np.zeros(response_side.shape[0])* np.nan
+    early_withdrawal_if_same = np.zeros(response_side.shape[0])* np.nan
+    
+    for k in range(1,early_withdrawal_if_opposite.shape[0]):
+        if (np.isnan(response_side[k-1]) ==0) and (correct_side[k] == correct_side[k-1]) and (np.isnan(trialdata['DemonEarlyWithdrawal'][k][0]) == 1 ):
+            early_withdrawal_if_same[k] = 0
+        elif (np.isnan(response_side[k-1]) ==0)  and (correct_side[k] == correct_side[k-1]) and (np.isnan(trialdata['DemonEarlyWithdrawal'][k][0]) == 0 ):
+            early_withdrawal_if_same[k] = 1
+            
+        if (np.isnan(response_side[k-1])==0) and (correct_side[k] != correct_side[k-1]) and (np.isnan(trialdata['DemonEarlyWithdrawal'][k][0]) == 1 ):
+            early_withdrawal_if_opposite[k] = 0
+        elif (np.isnan(response_side[k-1]) ==0) and (correct_side[k] != correct_side[k-1]) and (np.isnan(trialdata['DemonEarlyWithdrawal'][k][0]) == 0 ):
+            early_withdrawal_if_opposite[k] = 1
+    
 
 
 #%%-----check whether the mouse goes to the other side after errors and how frequently for each side
@@ -213,7 +214,7 @@ def post_outcome_side_switch(trialdata):
                     tmp = np.where(right_port_in[k] > trialdata['DemonInitFixation'][k][0])[0].astype(int)
                     poke_other_side.append(right_port_in[k][tmp])
             elif response_side[k] == 1:
-                if np.isnan(left_port[k][0]):
+                if np.isnan(left_port_in[k][0]):
                     poke_other_side.append(np.array([0]))
                 else:
                     tmp = np.where(left_port_in[k] > trialdata['DemonInitFixation'][k][0])[0].astype(int)
