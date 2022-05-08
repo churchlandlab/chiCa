@@ -110,7 +110,7 @@ accuracy_vect = np.hstack(accuracy_list)
 coefficient_variance = np.std(coef_mat, axis=1)**2
 accuracy_variance_correlation = np.corrcoef(accuracy_vect, coefficient_variance)
 
-pca_obj = PCA(10)
+pca_obj = PCA(6)
 pca_obj.fit(np.transpose(coef_mat))
 components = pca_obj.components_
 loadings = pca_obj.transform(np.transpose(coef_mat))
