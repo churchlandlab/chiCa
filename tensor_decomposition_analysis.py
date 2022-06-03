@@ -13,7 +13,7 @@ from tensorly.decomposition import parafac
 from decoding_utils import find_state_start_frame_imaging
 from decoding_utils import determine_prior_variable
 from sklearn.decomposition import PCA
-
+from choice_strategy_models import post_outcome_side_switch
 
 #%%-------Temporary data preprocessing
 aligned_state = 'PlayStimulus'
@@ -25,7 +25,7 @@ prior_category =  determine_prior_variable(np.array(trialdata['correct_side']), 
 outcome = np.array(trialdata['response_side'] == trialdata['correct_side'], dtype=float) #Define as float so that nans (that are float) can be retained
 outcome[np.array(np.isnan(trialdata['response_side']))] = np.nan
 prior_outcome =  determine_prior_variable(outcome ,np.ones(len(trialdata)), 1)
-
+switched, heading_direction = post_outcome_side_switch(trialdata)
 
 interval = np.floor(average_interval)/1000 #Short hand for the average interval between frames, assumes scope acquisition is slower than expected
 aligned_signal = np.zeros([int(window/interval +1), len(state_start_frame), signal.shape[0]])
@@ -48,19 +48,19 @@ tensor_components = factors_tl.factors
 
 #%%--------Generate a matrix of task variables of interest na dinspect its correlations
 
-label_mat = np.transpose(np.array((prior_category[valid_trials], prior_choice[valid_trials], prior_outcome[valid_trials], trialdata['correct_side'][valid_trials], trialdata['response_side'][valid_trials], outcome[valid_trials])))
+label_mat = np.transpose(np.array((prior_category[valid_trials], prior_choice[valid_trials], prior_outcome[valid_trials], heading_direction[valid_trials], trialdata['correct_side'][valid_trials], trialdata['response_side'][valid_trials], outcome[valid_trials])))
 
-task_vars = ['prior category', 'prior choice', 'prior outcome', 'category', 'choice', 'outcome']
+task_vars = ['prior category', 'prior choice', 'prior outcome', 'heading direction', 'category', 'choice', 'outcome']
 var_cor = np.corrcoef(np.transpose(label_mat))
 
-fi = plt.figure()
+fi = plt.figure(figsize=(7,5))
 ax = fi.add_axes((0.2,0.25,0.6,0.6))
 ms_handle = ax.matshow(var_cor, vmin=-1, vmax=1, cmap='bwr' )
 ax.tick_params(axis="x", bottom=True, top=False, labelbottom=True, labeltop=False)
 ax.set_xticklabels(['']+task_vars, Rotation=45)
 ax.set_yticklabels(['']+task_vars)
 fi.colorbar(ms_handle, label='correlation coefficient')
-fi.suptitle('Correlation of task variable labels')
+ax.set_title('Correlation of task variable labels', fontweight='bold')
 
 
 #%%
@@ -110,7 +110,7 @@ accuracy_vect = np.hstack(accuracy_list)
 coefficient_variance = np.std(coef_mat, axis=1)**2
 accuracy_variance_correlation = np.corrcoef(accuracy_vect, coefficient_variance)
 
-pca_obj = PCA(6)
+pca_obj = PCA(10)
 pca_obj.fit(np.transpose(coef_mat))
 components = pca_obj.components_
 loadings = pca_obj.transform(np.transpose(coef_mat))

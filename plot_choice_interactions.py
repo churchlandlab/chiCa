@@ -1,4 +1,4 @@
-icht# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Created on Wed Mar  9 12:07:34 2022
 
@@ -15,7 +15,7 @@ of the script.
 
 
 
-align_to_state = 'PlayStimulus'
+align_to_state = 'OutcomePresentation'
 
 state_start_frame = state_time_stamps(align_to_state, trialdata, average_interval)
 aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
@@ -39,6 +39,8 @@ line_labels = ['Wrong on right on last trial', 'Correct on right on last trial',
 grouping_variable = np.squeeze(np.array([(prior_choice==1) & (prior_outcome==0)])) #Squeeze the second dimension
 tmp_mean = np.nanmean(aligned_signal[:,grouping_variable], axis=1)
 tmp_sem = np.nanstd(aligned_signal[:,grouping_variable], axis=1)/np.sqrt(np.sum(np.isnan(aligned_signal[0,grouping_variable])==0))
+#tmp_sem = np.nanstd(aligned_signal[:,grouping_variable], axis=1)
+
 
 plax[0].fill_between(x_vect, tmp_mean-tmp_sem, tmp_mean+tmp_sem , color=color_specs[0], alpha=0.2) #Right in red
 plax[0].plot(x_vect, tmp_mean, color=color_specs[0], label=line_labels[0]) #Right in red
@@ -47,6 +49,7 @@ plax[0].plot(x_vect, tmp_mean, color=color_specs[0], label=line_labels[0]) #Righ
 grouping_variable = np.squeeze(np.array([(prior_choice==1) & (prior_outcome==1)])) #Squeeze the second dimension
 tmp_mean = np.nanmean(aligned_signal[:,grouping_variable], axis=1)
 tmp_sem = np.nanstd(aligned_signal[:,grouping_variable], axis=1)/np.sqrt(np.sum(np.isnan(aligned_signal[0,grouping_variable])==0))
+#tmp_sem = np.nanstd(aligned_signal[:,grouping_variable], axis=1)
 
 plax[0].fill_between(x_vect, tmp_mean-tmp_sem, tmp_mean+tmp_sem , color=color_specs[1], alpha=0.2) #Right in red
 plax[0].plot(x_vect, tmp_mean, color=color_specs[1], label=line_labels[1]) #Right in red
@@ -55,6 +58,7 @@ plax[0].plot(x_vect, tmp_mean, color=color_specs[1], label=line_labels[1]) #Righ
 grouping_variable = np.squeeze(np.array([(prior_choice==0) & (prior_outcome==0)])) #Squeeze the second dimension
 tmp_mean = np.nanmean(aligned_signal[:,grouping_variable], axis=1)
 tmp_sem = np.nanstd(aligned_signal[:,grouping_variable], axis=1)/np.sqrt(np.sum(np.isnan(aligned_signal[0,grouping_variable])==0))
+#tmp_sem = np.nanstd(aligned_signal[:,grouping_variable], axis=1)
 
 plax[0].fill_between(x_vect, tmp_mean-tmp_sem, tmp_mean+tmp_sem , color=color_specs[2], alpha=0.2) #Right in red
 plax[0].plot(x_vect, tmp_mean, color=color_specs[2], label=line_labels[2]) #Right in red
@@ -62,6 +66,7 @@ plax[0].plot(x_vect, tmp_mean, color=color_specs[2], label=line_labels[2]) #Righ
 #Left chosen left correct
 grouping_variable = np.squeeze(np.array([(prior_choice==0) & (prior_outcome==1)])) #Squeeze the second dimension
 tmp_mean = np.nanmean(aligned_signal[:,grouping_variable], axis=1)
+#tmp_sem = np.nanstd(aligned_signal[:,grouping_variable], axis=1)
 tmp_sem = np.nanstd(aligned_signal[:,grouping_variable], axis=1)/np.sqrt(np.sum(np.isnan(aligned_signal[0,grouping_variable])==0))
 
 plax[0].fill_between(x_vect, tmp_mean-tmp_sem, tmp_mean+tmp_sem , color=color_specs[3], alpha=0.2) #Right in red
@@ -69,10 +74,10 @@ plax[0].plot(x_vect, tmp_mean, color=color_specs[3], label=line_labels[3]) #Righ
 
 plax[0].axvline(x=0, color='k',linestyle='--', linewidth=0.3)
 plax[0].legend(loc='upper left')
-plax[0].set_xlabel('Time from stim onset (s)')
+plax[0].set_xlabel('Time from center poke (s)')
 plax[0].set_ylabel('Fluorescence intensity (A.U.)')
 
-#%%
+#
 plax[1] = fig_prev.add_subplot(212)
 line_labels = ['Should go left, goes right', 'Should go right, goes right', 'Should go right, goes left', 'Should go left, goes left']
 
@@ -112,7 +117,7 @@ plax[1].axvline(x=0, color='k',linestyle='--', linewidth=0.3)
 plax[1].legend(loc='upper left')
 plax[1].set_xlabel('Time from center poke (s)')
 plax[1].set_ylabel('Fluorescence intensity (A.U.)')
-#%%
+#
 tmp = np.zeros([2,2]) 
 for k in range(len(plax)):
      tmp[k,:] = plax[k].get_ylim()
@@ -123,7 +128,7 @@ for k in range(len(plax)):
 del y_lims
 
 
-
+#%%
 
 # #%%---------Make plots to split the current choice into past choice traces
 
@@ -331,7 +336,7 @@ subplot_titles = ['Prior right category and right choice', 'Prior right category
                'Prior left category and right choice', 'Prior left category and left choice']
 x_label_string = 'Seconds from center poke'
 
-fig_by_prior = plt.figure(figsize=(15, 9))
+fig_by_prior = plt.figure(figsize=(18, 10))
 fig_by_prior.suptitle(f'Cell number {current_neuron} aligned to {align_to_state}')
 by_prior = [None] * 4
 
@@ -346,7 +351,8 @@ for k in range(possibilities.shape[0]):
         
         if np.any(splits[n]):
             tmp_mean = np.nanmean(aligned_signal[:,splits[n]], axis=1)
-            tmp_std = np.nanstd(aligned_signal[:,splits[n]], axis=1)
+            tmp_std = np.nanstd(aligned_signal[:,splits[n]], axis=1)/np.sqrt(splits[n].shape[0])
+            #tmp_std = np.nanstd(aligned_signal[:,splits[n]], axis=1)
  
             by_prior[k].fill_between(x_vect, tmp_mean-tmp_std, tmp_mean+tmp_std , color=color_specs[n], alpha=0.2) 
             by_prior[k].plot(x_vect, tmp_mean, color=color_specs[n], label= line_labels[n] + f', {splits[n].shape[0]} trials')  #Right in red
@@ -412,7 +418,7 @@ plt.tight_layout()
 
 #Run the part of side switching in choice strategy first
 
-fig_heading = plt.figure(figsize=(12, 8))
+fig_heading = plt.figure(figsize=(18, 10))
 fig_heading.suptitle(f'Cell number {current_neuron} aligned to {align_to_state}')
 
 heading_combo = np.array([[0,0,0],[1,0,0],[0,1,1],[1,1,1],
@@ -440,8 +446,8 @@ for k in range(int(heading_combo.shape[0]/2)):
     heading_splits.append(np.where(((prior_category==heading_combo[k,0]) & (prior_choice==heading_combo[k,1])) & (went_to_other==heading_combo[k,2]))[0])
     if np.any(heading_splits[-1]):
             tmp_mean = np.nanmean(aligned_signal[:,heading_splits[-1]], axis=1)
-            tmp_std = np.nanstd(aligned_signal[:,heading_splits[-1]], axis=1)
- 
+            tmp_std = np.nanstd(aligned_signal[:,heading_splits[-1]], axis=1)/np.sqrt(heading_splits[n].shape[0])
+            #tmp_std = np.nanstd(aligned_signal[:,splits[n]], axis=1)
             h_ax[k].fill_between(x_vect, tmp_mean-tmp_std, tmp_mean+tmp_std , color=line_colors[0], alpha=0.2) 
             h_ax[k].plot(x_vect, tmp_mean, color=line_colors[0], label=line_labels[k] + f', {heading_splits[-1].shape[0]} trials')  #Right in red
     

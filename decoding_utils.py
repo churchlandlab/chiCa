@@ -59,7 +59,7 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
                   frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
                   #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
               except:
-                  frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['ObsInitFixation'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
+                  frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['FinishTrial'][n][0] - trialdata['ObsTrialStart'][n][0], average_interval/1000)
                   #If this is the previous implementation of chipmunk
                   
               tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
