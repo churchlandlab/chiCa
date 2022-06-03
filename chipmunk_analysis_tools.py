@@ -86,6 +86,7 @@ Created on Thu Jun  2 15:24:46 2022
 #             trialdata.insert(trialdata.shape[1], 'stimulus_event_timestamps', event_times)
             
 #             #Add the miniscope alignment parameters
+
 #             trialdata.insert(0, 'trial_start_frame_index', trial_start_frames[0:len(tmp)]) #Exclude the last trial that has not been completed.
 #             trialdata.insert(1, 'trial_start_time_covered', trial_start_time_covered[0:len(tmp)])
             
@@ -128,10 +129,14 @@ def convert_specified_behavior_sessions(file_names):
                 trialevents = []
                 trialstates = [] #Extract all trial states and events
                 for t in tmp:
-                     a = {u:None for u in uevents}
+                     a = {u: np.array([np.nan]) for u in uevents}
                      s = t['Events'].tolist()
                      for b in s.dtype.names:
-                            a[b] = s[b].tolist()
+                         if isinstance(s[b].tolist(), float):
+                             #Make sure to include single values as an array with a dimension
+                             a[b] = np.array([s[b].tolist()])
+                         else:
+                                a[b] = s[b].tolist()
                      trialevents.append(a)
                      a = {u:None for u in ustates}
                      s = t['States'].tolist()
