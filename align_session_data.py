@@ -74,14 +74,14 @@ if ((mscope_log[0, 0] == 2) & (mscope_log[1, 0] == 2)) & (mscope_log[1,2] - msco
 trial_starts  = np.where(mscope_log[:,0] == 23) #Find all trial starts
 trial_start_frames = mscope_log[trial_starts[0]+1,1] #Set the frame just after
 # trial start as the start frame, the trial start takes place in the exposure time of the frame.
-trial_start_time_covered = mscope_log[trial_starts[0]+1,2] - mscope_log[trial_starts[0],2] 
+trial_start_time_covered = np.array(mscope_log[trial_starts[0]+1,2] - mscope_log[trial_starts[0],2])
 # Keep the trial time that was covered by the frame acquisition
 # Check whether the number of trials is as expected
 trial_number_matches = trial_start_frames.shape[0] == (int(chipmunk_data['nTrials']) + 1)
 # Adding one to the number of trials is necessary becuase nTrials measures completed trials
 
 #%%-----Find the trial starts on the video tracking 
-
+#TODO: Get the correct extraction of the frame ids via labcams 
 trial_start_video_frame = [] #The frames that captured the start of a trial
 average_video_frame_interval = []#The average interval between the frames 
 

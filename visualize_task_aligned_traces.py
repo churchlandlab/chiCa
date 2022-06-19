@@ -89,10 +89,10 @@ if __name__ == '__main__':
         for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
           if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
               try:   
-                  frame_time = np.arange(trialdata['trial_start_time_covered'][n]/1000, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
+                  frame_time = np.arange(trialdata['trial_start_time_covered'][n]/1000, (trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0]) + average_interval/1000, average_interval/1000)
                   #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
               except:
-                   frame_time = np.arange(trialdata['trial_start_time_covered'][n]/1000, trialdata['FinishTrial'][n][0] - trialdata['ObsTrialStart'][n][0], average_interval/1000)
+                   frame_time = np.arange(trialdata['trial_start_time_covered'][n]/1000, (trialdata['FinishTrial'][n][0] - trialdata['ObsTrialStart'][n][0]) + average_interval/1000, average_interval/1000)
                    #This is to fit in the previous implementation of chipmunk
               tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
               state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_frame_index"][n])
@@ -119,7 +119,9 @@ if __name__ == '__main__':
             else: 
                aligned_signal[:,n] = np.nan
           
-        x_vect = np.arange(-window/2, window/2 + interval, interval) #Also return a vector of timestamps in seconds
+        #x_vect = np.arange(-window/2, window/2 + interval, interval) #Also return a vector of timestamps in seconds
+        x_vect = np.linspace(-window/2, window/2 , aligned_signal.shape[0]) #Use linspace here to be sure that the vector sizes match
+        
         
         return aligned_signal, x_vect
     
@@ -177,8 +179,14 @@ if __name__ == '__main__':
            currently but may be passed in a later version.'''
            
         #consider_states = ['DemonInitFixation', 'stimulus_event_timestamps', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
-        consider_states = ['DemonInitFixation', 'PlayStimulus', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
-        label_states = ['Start center fixation', 'First stimulus event', 'Movement onset', 'Reward', 'Punishment']
+        # consider_states = ['DemonInitFixation', 'PlayStimulus', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
+        # label_states = ['Start center fixation', 'First stimulus event', 'Movement onset', 'Reward', 'Punishment']
+        
+        #For observer
+        consider_states = ['ObsInitFixation', 'PlayStimulus', 'DemonReward', 'DemonWrongChoice', 'ObsReward']
+        label_states = ['Observer poke', 'First stimulus event', 'Demonstrator reward', 'Demonstrator punishment', 'Observer reward']
+        
+        
         # for m,(cstates, lines, d_axes) in enumerate(zip(consider_states, lines_on_plots,  data_axes)):
         #     state_start_frame = state_time_stamps(cstates, trialdata, average_interval)
         #     aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)

@@ -20,8 +20,8 @@ file_names = filedialog.askopenfiles(filetypes = [('Avi Files', '*.avi')])
 
 #%% Load movies
 
-start_frame = 21600 #Assumes the movies are synchronized
-frames_to_load = 900
+start_frame = 8000 #Assumes the movies are synchronized
+frames_to_load = 500
 videos = [None] * len(file_names)
 for s in range(len(file_names)):
 
@@ -36,12 +36,57 @@ for s in range(len(file_names)):
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame);
     print(cap.get(cv2.CAP_PROP_POS_FRAMES))
     
-    for k in range(900):
+    for k in range(frames_to_load):
         success, f = cap.read()
         movie[:,:,k] = f[:,:,1]
         
     cap.release()
     videos[s] = movie
+
+#%%---Simple function to create a video display with slider bar
+
+#def video_slider(video, start_frame):
+    '''Display video data in a matplotlib window with a sldier to control the
+    frame to be viewed. '''
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from matplotlib.widgets import Slider 
+    
+    
+    global display_frame
+    display_frame = 0
+    
+    fi = plt.figure()
+    disp_ax = fi.add_axes([0.15, 0.2, 0.7, 0.75]) #Axes for the video frame
+    sli_ax = fi.add_axes([0.15, 0.1, 0.7, 0.03]) #Axes for the slider
+
+    show_frame = disp_ax.imshow(video[:,:,display_frame])
+    disp_ax.set_axis_off()
+    
+    frame_slider = Slider(
+        ax=sli_ax,
+        label='Frame num',
+        valmin=0,
+        valmax=video.shape[2]-1, 
+        valinit=display_frame, 
+        valstep=1) #Fix the steps to integers
+
+
+    #Update function upon slider change
+    def refresh_frame(val):
+        global display_frame
+        
+        display_frame = val
+        show_frame.set_data(video[:,:,val])
+        fi.canvas.draw_idle()
+    
+    
+    # register the update function with each slider
+    frame_slider.on_changed(refresh_frame)
+    
+    #return  
+    
+video_slider(video, start_frame)
 
 #%%----Dirty and simple: just smush the movies together horizintally with a little separation
 horizontal_separation = np.zeros([videos[0].shape[0], 50, frames_to_load])

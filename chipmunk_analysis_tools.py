@@ -132,8 +132,9 @@ def convert_specified_behavior_sessions(file_names):
                      a = {u: np.array([np.nan]) for u in uevents}
                      s = t['Events'].tolist()
                      for b in s.dtype.names:
-                         if isinstance(s[b].tolist(), float):
+                         if isinstance(s[b].tolist(), float) or isinstance(s[b].tolist(), int): 
                              #Make sure to include single values as an array with a dimension
+                             #Arrgh, in the unusual case that a value is an int this should also apply!
                              a[b] = np.array([s[b].tolist()])
                          else:
                                 a[b] = s[b].tolist()
@@ -191,12 +192,18 @@ def convert_specified_behavior_sessions(file_names):
                 
                 tmp = sesdata['ActualWaitTime'].tolist()
                 trialdata.insert(trialdata.shape[1], 'actual_wait_time' , tmp)
+                #TEMPORARY: import the demonstrator and observer id
+                tmp = sesdata['TrialSettings'].tolist()
+                trialdata.insert(trialdata.shape[1], 'demonstrator_ID' , tmp['demonID'].tolist())
+                
                 
                 if 'ObsOutcomeRecord' in sesdata.dtype.fields:
                     trialdata.insert(1, 'observer_outcome_record', sesdata['ObsOutcomeRecord'].tolist())
                     tmp = sesdata['ObsActualWaitTime'].tolist()
                     trialdata.insert(trialdata.shape[1], 'observer_actual_wait_time' , tmp)
-                
+                    tmp = sesdata['TrialSettings'].tolist()
+                    trialdata.insert(trialdata.shape[1], 'dobserver_ID' , tmp['obsID'].tolist())
+                    
                 #----Now the saving
                 trialdata.to_hdf(os.path.splitext(current_file)[0] + '.h5', '/Data') #Save as hdf5
                 converted_files.append(os.path.splitext(current_file)[0] + '.h5') #Keep record of the converted files
