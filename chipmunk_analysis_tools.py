@@ -234,7 +234,26 @@ def pick_files(file_extension='*'):
 #%%
 
 def align_behavioral_video(camlog_file):
-    '''Description'''
+    '''Function to extract video tracking information. Returns the name of the camera from the log file,
+    the average interval between acquired frames and the frame indices of the trial starts.
+     
+    Parameters
+    ----------
+    camlog_file: The log file from the labcams acquisition. Make sure the data is stored in the specified folder structure
+                 that is, the chipmunk folder contains the camlog file and the .mat or .obsmat file from the behavior.
+    
+    Retunrs
+    -------
+    trial_start_video_frames: The frames when the trials started
+    
+    camera_name: The camera identifier as recorded in the log file
+
+    video_frame_interval: The average interval between video frames in seconds
+                        
+    Examples
+    --------
+    trial_start_video_frames, camera_name, video_frame_interval = align_behavioral_video(camlog_file)
+    '''
     
     import numpy as np
     from labcams import parse_cam_log, unpackbits #Retrieve the correct channel and spot trial starts in frames
@@ -255,21 +274,29 @@ def align_behavioral_video(camlog_file):
                                       struct_as_record=True)['SessionData']
     trial_num = int(sesdata['nTrials'])
     
-    #Frame alignment
-    logdata,comments = parse_cam_log(camlog_file)
-    onsets,offsets = unpackbits(logdata['var2']) #The channel log is always unnamed and thus receives the key var2
+    #Extract data from the log file
+    logdata, comments = parse_cam_log(camlog_file) #Parse inputs and separate comments from frame data
     
+    #Get the camera name
+    spaces = [pos for pos, char in enumerate(comments[0]) if char == ' '] #Find all the empty spaces that separate the words
+    camera_name = comments[0][spaces[1]+1: spaces[2]] #The name comes between the second and the third space
+    
+    #Get the video frame interval in s
+    video_frame_interval = np.mean(np.diff(logdata['timestamp'])) #Compute average time between frames
+    
+    #Find trial start frames
+    onsets, offsets = unpackbits(logdata['var2']) #The channel log is always unnamed and thus receives the key var2
     for k in onsets.keys():
         if onsets[k].shape[0] == trial_num + 1: # In most cases an unfinished trial will already have been started
-            onset_frames = onsets[k][0 : trial_num]
+            trial_start_video_frames = onsets[k][0 : trial_num]
         elif onsets[k].shape[0] == trial_num: # Sometimes the acquisition stops just after the end of the trial before the beginning of the next one
-            onset_frames = onsets[k]
+            trial_start_video_frames = onsets[k]
             
-    if not 'onset_frames' in locals():
+    if not 'trial_start_video_frames' in locals():
         print('In none of the camera channels the onset number matched the trial number. Please check the log files and camera setup.')
         return
     
-    return onset_frames#, effective_frame_rate, camera_name  
+    return trial_start_video_frames, camera_name, video_frame_interval
     
     
     
