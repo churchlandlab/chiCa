@@ -179,12 +179,12 @@ if __name__ == '__main__':
            currently but may be passed in a later version.'''
            
         #consider_states = ['DemonInitFixation', 'stimulus_event_timestamps', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
-        # consider_states = ['DemonInitFixation', 'PlayStimulus', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
-        # label_states = ['Start center fixation', 'First stimulus event', 'Movement onset', 'Reward', 'Punishment']
+        consider_states = ['DemonInitFixation', 'PlayStimulus', 'DemonWaitForResponse', 'DemonReward', 'DemonWrongChoice']
+        label_states = ['Start center fixation', 'First stimulus event', 'Movement onset', 'Reward', 'Punishment']
         
         #For observer
-        consider_states = ['ObsInitFixation', 'PlayStimulus', 'DemonReward', 'DemonWrongChoice', 'ObsReward']
-        label_states = ['Observer poke', 'First stimulus event', 'Demonstrator reward', 'Demonstrator punishment', 'Observer reward']
+        # consider_states = ['ObsInitFixation', 'PlayStimulus', 'DemonReward', 'DemonWrongChoice', 'ObsReward']
+        # label_states = ['Observer poke', 'First stimulus event', 'Demonstrator reward', 'Demonstrator punishment', 'Observer reward']
         
         
         # for m,(cstates, lines, d_axes) in enumerate(zip(consider_states, lines_on_plots,  data_axes)):

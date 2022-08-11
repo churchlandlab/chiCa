@@ -18,12 +18,27 @@ import matplotlib.pyplot as plt
 #%%------Define the import function
 
 def load_data(data_source):
+   '''Load cnmfe outputs either from a saved h5 file or from a caiman
+   object directly.
+   
+   Parameters
+   ----------
+   data_source: Name of h5 file or caiman object
+   
+   Returns
+   ------
+   
+   
+   Usage
+   ----------
+   A, C, S, F, image_dims, frame_rate, neuron_num, recording_length, movie_file, spMat = load_data(data_source)
+   '''
    
     
 #%%---Extract the variables of interest
 
 # Determine the data source - either hdf5 file or caiman object   
-    if isinstance(data_source, str): #Loading the data from HDF5
+   if isinstance(data_source, str): #Loading the data from HDF5
         
         hf = h5py.File(data_source, 'r') #'r' for reading ability
 
@@ -51,7 +66,7 @@ def load_data(data_source):
         spMat = scipy.sparse.csc_matrix((np.array(temp['data']),np.array(temp['indices']),
                             np.array(temp['indptr'])), shape=np.array(temp['shape']))
         
-    else: #Directly accessing from caiman object
+   else: #Directly accessing from caiman object
         image_dims = data_source.dims
         frame_rate = data_source.params.data['fr']
         movie_file = data_source.mmap_file
@@ -68,16 +83,16 @@ def load_data(data_source):
         spMat = data_source.estimates.A
         
 # Retrieve other useful info from the shape of the signal 
-    neuron_num = C.shape[0]
-    recording_length = C.shape[1]
+   neuron_num = C.shape[0]
+   recording_length = C.shape[1]
 
 
-    deMat = np.array(spMat.todense()) # fill the holes and transform to numpy array
+   deMat = np.array(spMat.todense()) # fill the holes and transform to numpy array
 
 # Several important things here: Other than in caiman the output is saved as 
 # n x neuron_num matrix. Therefore, the neuron dimension will be the third one.
 # Also, it is important to set the order of reshaping to 'F' (Fortran).
-    A = deMat.reshape(image_dims[0], image_dims[1], neuron_num, order='F')
+   A = deMat.reshape(image_dims[0], image_dims[1], neuron_num, order='F')
 
 #%%--- Temporary sanity check
     # plt.figure
@@ -95,8 +110,8 @@ def load_data(data_source):
     # plt.imshow(b) # Plot the projection of all neurons 
 
 #%%---Define the outputs
-    print('------------------------')
-    print('Successfully loaded data')
-    return A, C, S, F, image_dims, frame_rate, neuron_num, recording_length, movie_file, spMat
+   print('------------------------')
+   print('Successfully loaded data')
+   return A, C, S, F, image_dims, frame_rate, neuron_num, recording_length, movie_file, spMat
 
     

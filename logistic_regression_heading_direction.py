@@ -27,8 +27,8 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     #session_dir =  'C:/Users/Lukas Oesch/Documents/ChurchlandLab/TestDataChipmunk/TestMiniscopeAlignment/LO012/20210824_112833' #Can also be None
     #session_dir = None
     signal_type = 'c' #The type of traces to be used for decoding c = denoised, s = inferred spikes, f = detrended raw fluorescence
-    aligned_state = 'PlayStimulus' #State to align to 
-    decoder_range = [-5, 21] #The range of frames from the alignment time point that should be included,
+    aligned_state = 'DemonReward' #State to align to 
+    decoder_range = [0, 10] #The range of frames from the alignment time point that should be included,
     #python style lower inclusive, upper exclusive, thus one frame would be [0,1]
     window_size = 1 #The size of the sliding window
     #CAUTION: Only odd-numbered windows symmetrically distribute the activity data. Even-numbered windows

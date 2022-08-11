@@ -229,3 +229,52 @@ def pick_files(file_extension='*'):
     file_names = list(filedialog.askopenfilenames(filetypes = specifier))
     
     return file_names
+
+    ###########################################################################
+#%%
+
+def align_behavioral_video(camlog_file):
+    '''Description'''
+    
+    import numpy as np
+    from labcams import parse_cam_log, unpackbits #Retrieve the correct channel and spot trial starts in frames
+    from scipy.io import loadmat #Load behavioral data for ground truth on trial number
+    from os import path
+    from glob import glob
+    
+    #First load the associated chipmunk file and get the number of trials to find the correct channel on the camera
+    chipmunk_folder = path.split(camlog_file)[0] #Split the path to retrieve the folder only in order to load the mat or obsmat file belonging to the movies.
+    file_list = glob(chipmunk_folder + '/*.mat') #There is only one behavioral recording file in the folder
+    if not file_list:
+        file_list = glob(chipmunk_folder + '/*.obsmat')
+        if not file_list:
+            print('No behavioral event file was detected in the folder.')
+            return
+    chipmunk_file = file_list[0]
+    sesdata = loadmat(chipmunk_file, squeeze_me=True,
+                                      struct_as_record=True)['SessionData']
+    trial_num = int(sesdata['nTrials'])
+    
+    #Frame alignment
+    logdata,comments = parse_cam_log(camlog_file)
+    onsets,offsets = unpackbits(logdata['var2']) #The channel log is always unnamed and thus receives the key var2
+    
+    for k in onsets.keys():
+        if onsets[k].shape[0] == trial_num + 1: # In most cases an unfinished trial will already have been started
+            onset_frames = onsets[k][0 : trial_num]
+        elif onsets[k].shape[0] == trial_num: # Sometimes the acquisition stops just after the end of the trial before the beginning of the next one
+            onset_frames = onsets[k]
+            
+    if not 'onset_frames' in locals():
+        print('In none of the camera channels the onset number matched the trial number. Please check the log files and camera setup.')
+        return
+    
+    return onset_frames#, effective_frame_rate, camera_name  
+    
+    
+    
+    
+    
+    
+    
+    
