@@ -21,6 +21,8 @@ class video_snippets:
     Methods
     ------
     load: extract movie snippets from the video file
+    
+    
     play: play back specified snippets
     save: save snippet data
     -> type video_snippet.method? for more information.

@@ -196,6 +196,16 @@ def convert_specified_behavior_sessions(file_names):
                 tmp = sesdata['TrialSettings'].tolist()
                 trialdata.insert(trialdata.shape[1], 'demonstrator_ID' , tmp['demonID'].tolist())
                 
+                #Add a generic state tracking the timing of outcome presentation
+                outcome_timing = []
+                for k in range(trialdata.shape[0]):
+                    if np.isnan(trialdata['DemonReward'][k][0]) == 0:
+                        outcome_timing.append(np.array([trialdata['DemonReward'][k][0]]))
+                    elif np.isnan(trialdata['DemonWrongChoice'][k][0]) == 0:
+                        outcome_timing.append(np.array([trialdata['DemonWrongChoice'][k][0]]))
+                    else:
+                        outcome_timing.append(np.array([np.nan]))
+                trialdata.insert(trialdata.shape[1], 'outcome_presentation', outcome_timing)
                 
                 if 'ObsOutcomeRecord' in sesdata.dtype.fields:
                     trialdata.insert(1, 'observer_outcome_record', sesdata['ObsOutcomeRecord'].tolist())
