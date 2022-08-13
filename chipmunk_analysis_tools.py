@@ -200,9 +200,9 @@ def convert_specified_behavior_sessions(file_names):
                 outcome_timing = []
                 for k in range(trialdata.shape[0]):
                     if np.isnan(trialdata['DemonReward'][k][0]) == 0:
-                        outcome_timing.append(np.array([trialdata['DemonReward'][k][0]]))
+                        outcome_timing.append(np.array([trialdata['DemonReward'][k][0], trialdata['DemonReward'][k][0]]))
                     elif np.isnan(trialdata['DemonWrongChoice'][k][0]) == 0:
-                        outcome_timing.append(np.array([trialdata['DemonWrongChoice'][k][0]]))
+                        outcome_timing.append(np.array([trialdata['DemonWrongChoice'][k][0],trialdata['DemonWrongChoice'][k][0]]))
                     else:
                         outcome_timing.append(np.array([np.nan]))
                 trialdata.insert(trialdata.shape[1], 'outcome_presentation', outcome_timing)

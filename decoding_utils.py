@@ -19,7 +19,7 @@ def standardize_signal(signal):
 
 
 #%%-------------Retrieve the time stamps for the occurence of the task state of interest
-def find_state_start_frame_imaging(state_name, trialdata, average_interval, trial_start_time_covered):
+def find_state_start_frame_imaging(state_name, trialdata, average_interval, trial_start_time_covered = None):
     '''Locate the frame during which a certain state in the chipmunk task has
     started. The function also returns the time after state onset that was 
     covered by the frame acquisition. This may be helpful when interpreting 
@@ -35,14 +35,15 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
                       to calculate the aligned frame indices from the trial start 
                       frame index and the state occurence timers.
     trial_start_time_covered: numpy array, vector of time within the trial that 
-                              was captured within the imaging trial start frame.
+                              was captured within the imaging trial start frame. Default = None
     
     Retunrs
     -------
     state_start_frame: list, the frame index when the respective state started
                        in every trial.
     state_time_covered: numpy array, the time after state onset that is covered
-                        by the imaging frame.
+                        by the imaging frame. This only contains values if trial_start_time_covered
+                        was provided.
                         
     Examples
     --------
@@ -51,27 +52,46 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
     import numpy as np
                                                 
     state_start_frame = np.zeros([len(trialdata)]) #The frame that covers the start of
-    state_time_covered = np.zeros([len(trialdata)]) #The of the side that has been covered by the frame
     
-    for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
-          if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
-              try:    
-                  frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0], average_interval/1000)
-                  #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
-              except:
-                  frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['FinishTrial'][n][0] - trialdata['ObsTrialStart'][n][0], average_interval/1000)
-                  #If this is the previous implementation of chipmunk
-                  
-              tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
-              state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_frame_index"][n])
-              #np.where returns a tuple where the first element are the indices that fulfill the condition.
-              #Inside the array of indices retrieve the first one that is positive, therefore the first
-              #frame that caputres some information.
-         
-              state_time_covered[n] =  tmp[tmp > 0][0] #Retrieve the time that was covered by the frame
-          else:
+    if trial_start_time_covered is not None: #This should be the case for the calcium imaging data
+        state_time_covered = np.zeros([len(trialdata)]) #The of the side that has been covered by the frame
+        for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
+            if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
+                try:    
+                      frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0] + average_interval/1000, average_interval/1000) #Add one more frame as safety margin
+                      #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
+                except:
+                      frame_time = np.arange(trial_start_time_covered[n]/1000, trialdata['FinishTrial'][n][0] - trialdata['ObsTrialStart'][n][0] + average_interval/1000, average_interval/1000)
+                      #If this is the previous implementation of chipmunk
+                tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
+                state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_frame_index"][n])
+                #np.where returns a tuple where the first element are the indices that fulfill the condition.
+                #Inside the array of indices retrieve the first one that is positive, therefore the first
+                #frame that caputres some information.
+              
+                state_time_covered[n] =  tmp[tmp > 0][0] #Retrieve the time that was covered by the frame
+            else:
               state_start_frame[n] = np.nan
               state_time_covered[n] = np.nan
+              
+    else: #This is the case for the behavioral videos
+        state_time_covered = None #The of the side that has been covered by the frame
+        for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
+            if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
+                try:    
+                      frame_time = np.arange(0, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0] + average_interval/1000, average_interval/1000)
+                      #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
+                except:
+                      frame_time = np.arange(0, trialdata['FinishTrial'][n][0] - trialdata['ObsTrialStart'][n][0] + average_interval/1000, average_interval/1000)
+                      #If this is the previous implementation of chipmunk
+                tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
+                state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_frame_index"][n])
+                #np.where returns a tuple where the first element are the indices that fulfill the condition.
+                #Inside the array of indices retrieve the first one that is positive, therefore the first
+                #frame that caputres some information.
+              
+            else:
+              state_start_frame[n] = np.nan         
           
     return state_start_frame, state_time_covered
 
