@@ -196,7 +196,7 @@ def convert_specified_behavior_sessions(file_names):
                 tmp = sesdata['TrialSettings'].tolist()
                 trialdata.insert(trialdata.shape[1], 'demonstrator_ID' , tmp['demonID'].tolist())
                 
-                #Add a generic state tracking the timing of outcome presentation
+                #Add a generic state tracking the timing of outcome presentation, this is also a 1d array of two elements
                 outcome_timing = []
                 for k in range(trialdata.shape[0]):
                     if np.isnan(trialdata['DemonReward'][k][0]) == 0:

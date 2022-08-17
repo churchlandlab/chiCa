@@ -63,10 +63,11 @@ class video_snippets:
         #Start loading the snippets
         self.snippets = [] #Pre-allocate the snippet data
         for k in range(len(self.time_points)):
-            start_frame = self.time_points[k] - self.window/2
-            stop_frame = self.time_points[k] + self.window/2
+            start_frame = self.time_points[k] - round(window_frames/2) # Make sure to keep symmetric window also with uneven frame numbers
+            stop_frame = self.time_points[k] + round(window_frames/2)
             if start_frame < 0 or stop_frame > frame_number:
-                print(f'Time point number {k} cannot be retrieved because it is out of the video bounds with the current window size.')
+                self.snippets.append(None)
+                print(f'Time point number {k} cannot be retrieved because it is out of the video bounds with the current window size, inserted None.')
             else:
                 movie = np.zeros([frame.shape[0], frame.shape[1], window_frames + 1], 'uint8') #The extra frame is the actual event that flanked by two equally sized chunks
                 cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame);
@@ -99,16 +100,16 @@ class video_snippets:
       if not snippet_indices:
           snippet_indices = np.arange(len(self.snippets))
           
-          window_title = "Snippet"
-          cv2.namedWindow(window_title, cv2.WINDOW_AUTOSIZE) #Generate window 
-      
-          for k in snippet_indices:
-              cv2.setWindowTitle(window_title, f'Snippet {k}') #Change the name of the window
-              for n in range(self.snippets[k].shape[2]):
-                  cv2.imshow(window_title, self.snippets[k][:,:,n]) #Note that the window always retains its original name for plotting but that this name can be changed for display
-                  cv2.waitKey(round(self.video_frame_interval*1000)) #Requires an ineger amount of ms
-          
-              time.sleep(separation) #Here the break is in seconds
+      window_title = "Snippet"
+      cv2.namedWindow(window_title, cv2.WINDOW_AUTOSIZE) #Generate window 
+
+      for k in snippet_indices:
+        cv2.setWindowTitle(window_title, f'Snippet {k}') #Change the name of the window
+        for n in range(self.snippets[k].shape[2]):
+            cv2.imshow(window_title, self.snippets[k][:,:,n]) #Note that the window always retains its original name for plotting but that this name can be changed for display
+            cv2.waitKey(round(self.video_frame_interval*1000)) #Requires an ineger amount of ms
+    
+        time.sleep(separation) #Here the break is in seconds
 
 
 ###############################################################################
