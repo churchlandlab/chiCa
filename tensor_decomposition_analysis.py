@@ -41,8 +41,8 @@ tensor = aligned_signal[:,valid_trials,:]
 
 
 #%%---------do tensor decomposition
-rank = 20
-factors_tl = parafac(tensor, rank=20) 
+rank = 10
+factors_tl = parafac(tensor, rank) 
 tensor_components = factors_tl.factors
 
 

@@ -22,7 +22,7 @@ directory_name = filedialog.askdirectory()
 #Load first the alignment and the interpolated traces
 trial_alignment_files =  glob.glob(directory_name + '/trial_alignment/*.npz')
 for k in trial_alignment_files:
-    tmp_data = np.load(k)
+    tmp_data = np.load(k, allow_pickle = True)
     for key,val in tmp_data.items(): #Retrieve all the entries and create variables with the respective name, here, C and S and the average #interval between frames, average_interval, which is 1/framerate.
         exec(key + '=val')
 

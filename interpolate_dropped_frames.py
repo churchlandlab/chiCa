@@ -31,7 +31,7 @@ alignment_file = glob.glob(directory_name + '/trial_alignment/*.npz')
 #we can therefore look for the npz file in this folder. Later in datajoint we might just pull down the fed in data
 
 for s in range(len(alignment_file)):
-    alignment_directory = np.load(alignment_file[s]) #Fill in later
+    alignment_directory = np.load(alignment_file[s], allow_pickle = True) #Fill in later
     for key,val in alignment_directory.items(): #Retrieve all the entries 
            exec(key + '=val')
 
