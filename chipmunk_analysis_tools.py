@@ -277,8 +277,8 @@ def align_behavioral_video(camlog_file):
     if not file_list:
         file_list = glob(chipmunk_folder + '/*.obsmat')
         if not file_list:
-            print('No behavioral event file was detected in the folder.')
-            return
+            raise ValueError('No behavioral event file was found in the folder.')
+            
     chipmunk_file = file_list[0]
     sesdata = loadmat(chipmunk_file, squeeze_me=True,
                                       struct_as_record=True)['SessionData']
@@ -303,8 +303,7 @@ def align_behavioral_video(camlog_file):
             trial_start_video_frames = onsets[k]
             
     if not 'trial_start_video_frames' in locals():
-        print('In none of the camera channels the onset number matched the trial number. Please check the log files and camera setup.')
-        return
+        raise ValueError('In none of the camera channels the onset number matched the trial number. Please check the log files and camera setup.')
     
     return trial_start_video_frames, camera_name, video_frame_interval
     
@@ -313,7 +312,7 @@ def align_behavioral_video(camlog_file):
 
 def align_miniscope_data(caiman_file): 
     '''Function to align the acquired miniscope data to the behavior and interpolate
-    dropped frames in the signal if necessary. Stores the results in '/trial_alignment'
+    dropped frames in the signal if necessary. Stores the results in '/analysis'
     inside the session directory and outputs the data as a dictionary.
     
     Parameters
@@ -539,8 +538,8 @@ def align_miniscope_data(caiman_file):
     
     #-------Save the obtained results to an easily python-readable file--------
     #Generate a new directory if needed
-    if os.path.isdir(session_directory + "/trial_alignment") == False:
-        os.mkdir(session_directory + "/trial_alignment")
+    if os.path.isdir(session_directory + "/analysis") == False:
+        os.mkdir(session_directory + "/analysis")
         
     #Get some info on session date and animal id    
     temp = os.path.split(session_directory)
@@ -548,7 +547,7 @@ def align_miniscope_data(caiman_file):
     animalID = os.path.split(temp[0])[1]    
     
     #Set the output file name and save relevant variables
-    output_file = session_directory + "/trial_alignment/" + animalID + "_" + session_date + "_" + "miniscope_data.npy"    
+    output_file = session_directory + "/analysis/" + animalID + "_" + session_date + "_" + "miniscope_data.npy"    
     np.save(output_file, miniscope_data)
     
     return miniscope_data
