@@ -19,7 +19,7 @@ def standardize_signal(signal):
 
 
 #%%-------------Retrieve the time stamps for the occurence of the task state of interest
-def find_state_start_frame_imaging(state_name, trialdata, average_interval, trial_start_time_covered = None):
+def find_state_start_frame_imaging(state_name, trialdata, average_interval, trial_starts, trial_start_time_covered = None):
     '''Locate the frame during which a certain state in the chipmunk task has
     started. The function also returns the time after state onset that was 
     covered by the frame acquisition. This may be helpful when interpreting 
@@ -34,6 +34,7 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
     average_interval: float, the mean interval in seconds between imaging frames, used
                       to calculate the aligned frame indices from the trial start 
                       frame index and the state occurence timers.
+    trial_starts: numpy array, The indices of the trial starts
     trial_start_time_covered: numpy array, vector of time within the trial that 
                               was captured within the imaging trial start frame. Default = None
     
@@ -64,7 +65,7 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
                       frame_time = np.arange(trial_start_time_covered[n], trialdata['FinishTrial'][n][0] - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
                       #If this is the previous implementation of chipmunk
                 tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
-                state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_frame_index"][n])
+                state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_starts[n])
                 #np.where returns a tuple where the first element are the indices that fulfill the condition.
                 #Inside the array of indices retrieve the first one that is positive, therefore the first
                 #frame that caputres some information.
@@ -85,7 +86,7 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
                       frame_time = np.arange(0, trialdata['FinishTrial'][n][0] - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
                       #If this is the previous implementation of chipmunk
                 tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
-                state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trialdata["trial_start_frame_index"][n])
+                state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_starts[n])
                 #np.where returns a tuple where the first element are the indices that fulfill the condition.
                 #Inside the array of indices retrieve the first one that is positive, therefore the first
                 #frame that caputres some information.

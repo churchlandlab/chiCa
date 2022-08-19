@@ -113,7 +113,7 @@ def load_data(data_source):
 
 #%%---Define the outputs
    print('------------------------')
-   print('Successfully loaded data')
+   print('Successfully loaded caiman data')
    return A, C, S, F, image_dims, frame_rate, neuron_num, recording_length, movie_file, spMat
 
     

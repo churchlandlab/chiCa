@@ -47,17 +47,31 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
         Tk().withdraw() #Don't show the tiny confirmation window
         session_dir = filedialog.askdirectory()
     
-    #Load the alignment files and the interpolated traces
-    trial_alignment_files =  glob.glob(session_dir + '/trial_alignment/*.npz')
-    for k in trial_alignment_files:
-        tmp_data = np.load(k)
-        for key,val in tmp_data.items(): #Retrieve all the entries and create variables with the respective name, here, C and S and the average #interval between frames, average_interval, which is 1/framerate.
-            exec(key + '=val')
-            
-    #Load the dataframe
-    trialdata = pd.read_hdf(glob.glob(session_dir + '/trial_alignment/*.h5')[0], '/Data')
-    #This might need to be adapted if more hdf5 files are added to the alignment directory
-    #or if the trial alignment changes its location...
+    try:
+        trial_alignment_file = glob.glob(session_dir + '/trial_alignment/*.npy')[0]
+        miniscope_data = np.load(trial_alignment_file).tolist()
+        
+        trial_starts = miniscope_data['trial_starts']
+        average_interval = miniscope_data['frame_interval']
+        trial_start_time_covered = miniscope_data['trial_start_time_covered']
+        C_interpolated = miniscope_data['C']
+        S_interpolated = miniscope_data['S']
+        F_interpolated = miniscope_data['F']
+        
+        trialdata = pd.read_hdf(glob.glob(session_dir + '/chipmunk/*.h5')[0], '/Data')
+    except:    
+        #Load the alignment files and the interpolated traces
+        trial_alignment_files =  glob.glob(session_dir + '/trial_alignment/*.npz')
+        for k in trial_alignment_files:
+            tmp_data = np.load(k)
+            for key,val in tmp_data.items(): #Retrieve all the entries and create variables with the respective name, here, C and S and the average #interval between frames, average_interval, which is 1/framerate.
+                exec(key + '=val')
+                
+        #Load the dataframe
+        trialdata = pd.read_hdf(glob.glob(session_dir + '/trial_alignment/*.h5')[0], '/Data')
+        trial_starts = trialdata['trial_start_frame_index']
+        #This might need to be adapted if more hdf5 files are added to the alignment directory
+        #or if the trial alignment changes its location...
     
     #%%-----Start arranging the data
     
@@ -122,39 +136,6 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     else:
             secondary_labels = None
 
-
-
-    
-    # if (label_trials_back > 0) or (secondary_label_trials_back > 0): #If one of these looks at a trial in the past one needs to redefine the trials to include
-    #     if label_trials_back > 0:
-    #         temp_labels = decoding_utils.determine_prior_variable(np.array(trialdata[label_name]), valid_trials, label_trials_back)
-    #     else:
-    #         temp_labels = np.array(trialdata[label_name])
-    #     if secondary_label_name is not None:
-    #         if secondary_label_trials_back > 0:
-    #             temp_secondary_labels = decoding_utils.determine_prior_variable(np.array(trialdata[secondary_label_name]), valid_trials, secondary_label_trials_back)
-    #         else:
-    #             temp_secondary_labels = np.array(trialdata[secondary_label_name])
-    #     else:
-    #         temp_secondary_labels = np.array(trialdata[label_name])
-    #         #The above is just a dummy expression to be able to compare the temps below
-        
-    #     valid_trials = (np.isnan(temp_labels) == 0) & (np.isnan(temp_secondary_labels) == 0) #Refering now to all the trials, for which valid label combinations exist
-        
-    #     labels = temp_labels[valid_trials]
-    #     if secondary_label_name is not None:
-    #         secondary_labels = temp_secondary_labels[valid_trials]
-    #     else:
-    #         secondary_labels = None
-            
-    # #The case where no past labels are used        
-    # else:
-    #     labels = np.array(trialdata[label_name][valid_trials])
-    #     if secondary_label_name is not None:
-    #         secondary_labels = np.array(trialdata[secondary_label_name][valid_trials])
-    #     else:
-    #         secondary_labels = None
-
     
     #Standardize the input signal
     if signal_type == 'c':
@@ -165,8 +146,13 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
         signal = decoding_utils.standardize_signal(F_interpolated)
     #Note that now the observations are rows and the columns are features
     
+    #TEMPORARY
+    if average_interval > 1: #If this is still in miliseconds
+        average_interval = average_interval/1000
+        trial_start_time_covered = trial_start_time_covered/1000
+    
     #Align the frames to the respective state
-    state_start_frame, state_time_covered = decoding_utils.find_state_start_frame_imaging(aligned_state,trialdata, average_interval,
+    state_start_frame, state_time_covered = decoding_utils.find_state_start_frame_imaging(aligned_state,trialdata, average_interval, trial_starts,
                                                                                           trial_start_time_covered) #Recover the first frame that captured that state 
     zero_frame = np.array(state_start_frame[valid_trials] + decoder_range[0], dtype=int) #The firts frame to consider
     
