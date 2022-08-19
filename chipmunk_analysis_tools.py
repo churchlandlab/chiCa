@@ -5,101 +5,25 @@ Created on Thu Jun  2 15:24:46 2022
 @author: Lukas Oesch
 """
 
-# def convert_behavior_sessions(directory_name, directory_structure = 'local'):
-#     '''Convert the recorded behavioral .mat files to pandas data frames'''
-    
-    
-#     from glob import glob
-#     import os 
-#     import pandas as pd
-#     from scipy.io import loadmat
-    
-#     #%%----------Get the subjects inside the directory
-#     subject_dirs = os.listdir(directory_name) #List all the directories and files here and check for directory later
-    
-#     #%%------Start looping through the subjects and list the .obsmat files
-#     if directory_structure == 'local': #Where all the .mat files are losely floating inside the subject folder 
-#         for subject in subject_dirs:
-#             if os.path.isdir(directory_name + subject): #Verify that we look inside a folder
-#                obsmat_list = glob(directory_name + subject + '/*.obsmat') #Retrieve all files with .obsmat extension
-    
-#     #%%------Loading and converting
- 
-#         try:
-#             sesdata = loadmat(chipmunk_file[0], squeeze_me=True,
-#                                       struct_as_record=True)['SessionData']
-            
-#             tmp = sesdata['RawEvents'].tolist()
-#             tmp = tmp['Trial'].tolist()
-#             uevents = np.unique(np.hstack([t['Events'].tolist().dtype.names for t in tmp])) #Make sure not to duplicate state definitions
-#             ustates = np.unique(np.hstack([t['States'].tolist().dtype.names for t in tmp]))
-#             trialevents = []
-#             trialstates = [] #Extract all trial states and events
-#             for t in tmp:
-#                  a = {u:None for u in uevents}
-#                  s = t['Events'].tolist()
-#                  for b in s.dtype.names:
-#                         a[b] = s[b].tolist()
-#                  trialevents.append(a)
-#                  a = {u:None for u in ustates}
-#                  s = t['States'].tolist()
-#                  for b in s.dtype.names:
-#                          a[b] = s[b].tolist()
-#                  trialstates.append(a)
-#             trialstates = pd.DataFrame(trialstates)
-#             trialevents = pd.DataFrame(trialevents)
-#             trialdata = pd.merge(trialevents,trialstates,left_index=True, right_index=True)
-            
-#             #Add response and stimulus train related information: correct side, rate, event occurence time stamps
-#             trialdata.insert(trialdata.shape[1], 'response_side', sesdata['ResponseSide'].tolist())
-#             trialdata.insert(trialdata.shape[1], 'correct_side', sesdata['CorrectSide'].tolist())
-            
-#             #Get stim modality$
-#             tmp_modality_numeric = sesdata['Modality'].tolist()
-#             temp_modality = []
-#             for t in tmp_modality_numeric:
-#                 if t == 1:
-#                     temp_modality.append('visual')
-#                 elif t == 2: 
-#                     temp_modality.append('auditory')
-#                 elif t == 3:
-#                     temp_modality.append('audio-visual')
-#                 else: 
-#                     temp_modality.append(np.nan)
-#                     print('Could not determine modality and set value to nan')
-                    
-#             trialdata.insert(trialdata.shape[1], 'stimulus_modality', temp_modality)
-            
-#             #Reconstruct the time stamps for the individual stimuli
-#             event_times = []
-#             event_duration = sesdata['StimulusDuration'].tolist()[0]
-#             for t in range(trialdata.shape[0]):
-#                 temp_isi = sesdata['InterStimulusIntervalList'].tolist().tolist()[t][tmp_modality_numeric[t]-1]
-#                 #Index into the corresponding trial and find the isi for the corresponding modality
-                
-#                 temp_trial_event_times = [temp_isi[0]] 
-#                 for k in range(1,temp_isi.shape[0]-1): #Start at 1 because the first Isi is already the timestamp after the play stimulus
-#                     temp_trial_event_times.append(temp_trial_event_times[k-1] + event_duration + temp_isi[k])
-            
-#                 event_times.append(temp_trial_event_times + trialdata['PlayStimulus'][t][0]) #Add the timestamp for play stimulus to the event time
-            
-#             trialdata.insert(trialdata.shape[1], 'stimulus_event_timestamps', event_times)
-            
-#             #Add the miniscope alignment parameters
-
-#             trialdata.insert(0, 'trial_start_frame_index', trial_start_frames[0:len(tmp)]) #Exclude the last trial that has not been completed.
-#             trialdata.insert(1, 'trial_start_time_covered', trial_start_time_covered[0:len(tmp)])
-            
-#             #Add alignment for the video tracking
-#             for n in range(len(trial_start_video_frame)):
-#                 trialdata.insert(2, camera_name[n]+ '_trial_start_index', trial_start_video_frame[n][0:len(tmp)])
-#    return
-#    #############################################################################
 #%%
 
 def convert_specified_behavior_sessions(file_names):
-    '''converted_files = convert_specified_behavior_sessions(file_names)
-    Convert a specified set of behavioral sessions to pandas data frames'''
+    '''Convert a list of specified behavior files from .mat or .obsmat to
+    pandas data frames. The data frame is saved in the /Data dataset.
+    
+    Parameters
+    ----------
+    file_names: list, a list containing the paths of the files to convert
+    
+    Returns
+    -------
+    coverted_files: list, the paths to the converted files. To load in an individual
+                    file use pandas.read_hdf(converted_file, '/Data').
+    
+    Examples
+    --------
+    converted_files = convert_specified_behavior_sessions(file_names)
+    '''
     
     import os 
     import pandas as pd
@@ -226,8 +150,20 @@ def convert_specified_behavior_sessions(file_names):
 #%%
 
 def pick_files(file_extension='*'):
-    '''file_names = pick_files(file_extension='*.mat')
-    Simple file selection function for quick selections'''
+    ''' Simple file selection function for quick selections.
+    
+    Parameters
+    ----------
+    file_extension: str, file extension specifier, for example *.mat
+    
+    Returns
+    -------
+    file_names: list, list of file names selected
+    
+    Examples
+    --------
+    file_names = pick_files('*.mat')
+    '''
     
     from tkinter import Tk #For interactive selection, this part is only used to withdraw() the little selection window once the selection is done.
     import tkinter.filedialog as filedialog
