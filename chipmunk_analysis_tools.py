@@ -249,7 +249,9 @@ def align_behavioral_video(camlog_file):
 def align_miniscope_data(caiman_file): 
     '''Function to align the acquired miniscope data to the behavior and interpolate
     dropped frames in the signal if necessary. Stores the results in '/analysis'
-    inside the session directory and outputs the data as a dictionary.
+    inside the session directory and outputs the data as a dictionary. When loading
+    the data from the file later use:
+    miniscope_data = numpy.load(mscope_data_path, allow_pickle = True).tolist()
     
     Parameters
     ----------

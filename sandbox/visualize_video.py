@@ -129,9 +129,9 @@ class video_snippets:
                         #Set after how many frames to stop reading from the respective file
                         counter = 0 #Introduce this here to remember the position inside the snippet
                         for m in range(start_file_idx, stop_file_idx + 1):
-                            cap = cv2.VideoCapture(self.video_file[m]) #Direct the video reader to the correct movie file
-                            cap.set(cv2.CAP_PROP_POS_FRAMES, start_in_file[m]);
-                            for n in range(stop_after[m]):
+                            cap = cv2.VideoCapture(self.video_file[m]) #Direct the video reader to the correct movie file, 
+                            cap.set(cv2.CAP_PROP_POS_FRAMES, start_in_file[m - start_file_idx]); #Set the first frame to read within the respective video
+                            for n in range(stop_after[m - start_file_idx]): #Pass the amount of frames to be read
                                 success, f = cap.read()
                                 movie[:,:,counter] = f[:,:,1]
                                 counter = counter + 1
