@@ -177,6 +177,78 @@ def pick_files(file_extension='*'):
     return file_names
 
     ###########################################################################
+    
+#%%
+
+def pick_files_multi_session(data_type, file_extension, file_keyword = None):
+    '''Tool to select specified files of a data type over a user selected set of sessions.
+    This relies on the hierarchical Churchland lab data folder structure with:
+    animal_name -> session_datetime -> data_type
+    The function uses wxpython, please install wx before running.
+       
+    
+    Parameters
+    ----------
+    data_type: str, the directory with the specific data type, for example chipumnk, caiman, etc.
+    file_extension: str, file extension specifier, for example *.mat
+    file_keyword: str, a pattern that should be detected inside the file name to
+                  distinguish the desired files from other files with the same extension.
+    
+    Returns
+    -------
+    file_names: list, list of file names selected
+    
+    Examples
+    --------
+    file_names = pick_files_multi_session(data_type, file_extension, file_keyword)
+    '''
+    
+    import os
+    import wx #To build the selction app
+    import wx.lib.agw.multidirdialog as MDD #For the selection of multiple directories
+    import glob #To spot the files of interest
+
+    #-----Start the selection app and let the user choose the session directory-------
+    app = wx.App(0) #Start the app
+    
+    dlg = MDD.MultiDirDialog(None, title="Select sessions", defaultPath=os.getcwd(),
+                             agwStyle=MDD.DD_MULTIPLE|MDD.DD_DIR_MUST_EXIST) #Dialog settings
+    if dlg.ShowModal() != wx.ID_OK: #Show the dialog
+        print("You Cancelled The Dialog!")
+        dlg.Destroy()
+        
+    paths = dlg.GetPaths() #Retrieve the paths, they will show as windows paths in the IDE but they are actually correct!
+    del  app #Clean up
+    del dlg
+    
+    #-----
+    file_names = []
+    for p in paths: #Convert and search the directories
+        search_path = os.path.join(p, data_type, file_extension) #Construct the search path to identify the desired files in the data_type directory
+        tmp = glob.glob(search_path)
+        
+        match_description = []
+        
+        if file_keyword is not None: #Check for a certain keyword inside the file name
+            for candidate_file in tmp:
+                candidate_name = os.path.split(candidate_file)[1]
+                result = candidate_name.find(file_keyword)
+                if result > -1:
+                    match_description.append(candidate_file)        
+        else: #No key word is given
+            match_description.append(tmp)
+        
+        #Check if more than one file matches the description
+        if len(match_description) > 1: #Multiple files were found
+                raise ValueError(f'More than one file matching the keyword were found in the following search path:\n{search_path}')    
+        elif len(match_description) == 0:
+                pass #Just ignore if no file has been found
+        else:
+                file_names.append(match_description[0])
+    
+    return file_names
+
+##############################################################################
 #%%
 
 def align_behavioral_video(camlog_file):
