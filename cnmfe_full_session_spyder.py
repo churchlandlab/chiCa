@@ -69,7 +69,7 @@ def main():
 #    fnames = ['data_endoscope.tif']  # filename to be processed
 #    fnames = [download_demo(fnames[0])]  # download file if not already present
 #    filename_reorder = fnames
-    
+
     #To load all the movies in the folder
 #   from pathlib import Path
 #   import os
@@ -79,7 +79,7 @@ def main():
 #   fnames = list(base_dir.glob('**/*.avi'))
 #   fnames = os_sorted(fnames)
 #   print(fnames)
-    
+
     #To let user select files
     from tkinter import Tk
     from tkinter.filedialog import askopenfilenames
@@ -87,9 +87,9 @@ def main():
     fileSet = askopenfilenames(title = "Select your imaging movie files",
                             filetypes =[("AVI files","*.avi*")])
     fnames = list(fileSet)
-    
+
     #%%
-    
+
     fr = 20                          # movie frame rate
     decay_time = 0.6                 # length of a typical transient in seconds
 
@@ -127,7 +127,7 @@ def main():
     if motion_correct:
         #Track the time to compute shifts
         mc_start_time = time()
-        
+
         # do motion correction rigid
         mc = MotionCorrect(fnames, dview=dview, **opts.get_group('motion'))
         mc.motion_correct(save_movie=True)
@@ -146,17 +146,17 @@ def main():
         bord_px = 0 if border_nan == 'copy' else bord_px
         fname_new = cm.save_memmap(fname_mc, base_name='memmap_', order='C',
                                    border_to_0=bord_px)
-        
+
         mc_end_time = time()
         #Display elapsed time
         print(f"Motion correcition finished in {round(mc_end_time - mc_start_time)} s.")
-        
+
     else:  # if no motion correction just memory map the file
         fname_new = cm.save_memmap(filename_reorder, base_name='memmap_',
                                    order='C', border_to_0=0, dview=dview)
-#%%-- Save the shifts, the very basic implementation    
+#%%-- Save the shifts, the very basic implementation
     rigid_shifts = np.array(mc.shifts_rig) # Retrieve shifts from mc object
-    
+
     outputPath = os.path.dirname(fnames[0]) #Assuming that you want the results in the same location
     np.save(outputPath + '/rigid_shifts', rigid_shifts) #Save the np array to npy file
 
@@ -164,7 +164,7 @@ def main():
     # load memory mappable file
     Yr, dims, T = cm.load_memmap(fname_new, mode='r+')
     images = Yr.T.reshape((T,) + dims, order='F')
-    
+
 
 # %% Parameters for source extraction and deconvolution (CNMF-E algorithm)
 
@@ -222,15 +222,15 @@ def main():
                                     'del_duplicates': True,                # whether to remove duplicates from initialization
                                     'border_pix': bord_px})                # number of pixels to not consider in the borders)
 
-#%% Remove pixels with basically zero intensity but very few 
-    
+#%% Remove pixels with basically zero intensity but very few
+
     medProj = np.median(images, axis=0, keepdims=True)
     median_bool = np.squeeze(medProj < 1)
     for k in range(images.shape[0]):
         temp = images[k,:,:]
         temp[median_bool] = 0.0001
         images[k,:,:] = temp
-        
+
 # %% compute some summary images (correlation and peak to noise)
     # change swap dim if output looks weird, it is a problem with tiffile
     corr_image_start = time()
@@ -239,7 +239,7 @@ def main():
     #the actual correlation image that can be used later to align other sessions to this session
     corr_image_end = time()
     print(f"Computed correlation- and pnr images in {corr_image_end - corr_image_start} s.")
-    
+
     np.save(outputPath + '/spatio_temporal_correlation_image', cn_filter)
     np.save(outputPath + '/median_projection', medProj)
     # if your images file is too long this computation will take unnecessarily
@@ -259,40 +259,40 @@ def main():
                                                      single_thread=False)
 # %% RUN CNMF ON PATCHES
     cnmfe_start_time = time()
-    
+
     cnm = cnmf.CNMF(n_processes=n_processes, dview=dview, Ain=Ain, params=opts)
     cnm.fit(images)
-    
+
     #Display elapsed time
     cnmfe_end_time = time()
     print(f"Ran initialization and fit cnmfe model in {round(cnmfe_end_time - cnmfe_start_time)} s.")
 
     # Save first round of results
-    cnm.save(outputPath + '/firstRound.hdf5') 
+    cnm.save(outputPath + '/firstRound.hdf5')
 #%% Manual curation and selection of reasonable neruons
-  
+
     keep_neuron, frame_slider = neuron_selection_GUI.run_neuron_selection(data_source = cnm)
     # Do the selection here. Don't advance until the selection is completed since further executions are not blocked!
-    
+
 #%% Now convert the list of accepted components to indices
     #keep_idx = [i for i, val in enumerate(neurons_to_keep) if val] #Returns the index of every true entry in the list
-    
+
     #Plug the indices in before re-running the fitting prodecure
     cnm.estimates.select_components(idx_components = keep_neuron)
-    
+
 #%% Restart a new parallel pool
      dview.terminate()
     c, dview, n_processes = cm.cluster.setup_cluster(backend='local',
                                                      n_processes=6,  # number of process to use, if you go out of memory try to reduce this one
                                                      single_thread=False)
-    
+
 #%% Run the fitting again with only the accepted components
     cnm.refit(images, dview = dview)
     cnm.estimates.detrend_df_f() #Also reconstruct the detrended non/denoised trace
-    cnm.save(outputPath + '/secondRound.hdf5') 
-    
+    cnm.save(outputPath + '/secondRound.hdf5')
+
 #%%-------AUXILIARY FUNCTIONS AND VISUALIZATIONS
-    
+
 ##############################################################################
 # %% ALTERNATE WAY TO RUN THE PIPELINE AT ONCE
     #   you can also perform the motion correction plus cnmf fitting steps

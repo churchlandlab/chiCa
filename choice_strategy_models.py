@@ -4,8 +4,81 @@ Created on Tue Apr  5 16:47:08 2022
 
 @author: Lukas Oesch
 """
+def dPrime_2AFC(correct_side, response_side):
+    '''Calculate the d prime value for a 2AFC task.
+    
+    Parameters
+    ----------
+    correct_side: numpy array, vector of the correct trial sides
+    response_side: numpy array, vector of the chosen side by the animal, nan is handled.
+    
+    Returns
+    -------
+    dPrime: float, the d prime value
+    side_code: float, the side that the hit_rate and the false_alarm rate are calculated on
+    hit_rate: float, the rate of correctly choosing the specified side when it was actually correct
+    false_alarm_rate: float, the rate of incorrectly choosing the specified side when the other side was correct
+    
+    Usage
+    -----
+    dPrime, side_code, hit_rate, false_alarm_rate = dPrime_2AFC(correct_side, response_side)
+    '''
+    
+    
+    import numpy as np
+    from scipy.stats import norm
+    
+    #Check validity
+    correct_side = correct_side[np.isnan(response_side) == 0] #Find all the instances where the animal made a choice and exclude incomplete trials
+    response_side = response_side[np.isnan(response_side) == 0]    
+   
+    #Extract one of the side codes regardless of its encoding, e.g. can ne 0 and 1 or -1 and 1, or ...
+    side_code = np.unique(response_side)[0]
+    
+    hit_rate = np.sum((correct_side == side_code) & (response_side == side_code)) / np.sum(correct_side == side_code)
+    #Is defined as the proportion the animal responded correctly on the specified side (side_code) when the side was actually correct -> p(response = left | left = correct)
+    false_alarm_rate = np.sum(np.not_equal(correct_side, side_code) & (response_side == side_code)) / np.sum(np.not_equal(correct_side, side_code))
+    #Is defined as the proportion the animal responded incorrectly with specified side when the other side was actually correct -> p(response = left | right = correct)
 
+    dPrime = norm.ppf(hit_rate) - norm.ppf(false_alarm_rate)
+   
+    return dPrime, side_code, hit_rate, false_alarm_rate
+    
 
+############################################################################
+#%%
+
+class fit_learning_curve:
+    '''Fit a multi-parameter learning curve to an animal's performance data'''
+    
+    def __init__(self, parameter_names = ['inflection_point', 'slope', 'maximum', 'minimum']):
+                 self.parameter_names = parameter_names
+                 
+    def sigmoid(self, x, x0, tau, ma, mi):
+        
+        import numpy as np
+        
+        y = mi +  ma / (1 + np.exp(-tau*(x-x0)))
+        return y
+                 
+    def estimate_params(self, training_x, training_y):
+        import numpy as np
+        from scipy.optimize import curve_fit
+        popt, pcov = curve_fit(self.sigmoid, training_x, training_y)
+        self.parameters = popt 
+        self.pcov = pcov
+        self.estimate_std = np.sqrt(np.diag(pcov))
+
+    def reconstruct(self, test_x):
+        import numpy as np
+        y = self.parameters[3] + self.parameters[2] / (1 + np.exp(-self.parameters[1] * (test_x - self.parameters[0])))
+   
+        return y
+   
+    
+    
+##############################################################################  
+#%%
 #if __name__ == '__main__': #This part is required for using multiprocessing within this script. Why?
 def choice_strategy(session_dir):
     '''xxx'''
