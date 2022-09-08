@@ -49,30 +49,100 @@ def dPrime_2AFC(correct_side, response_side):
 #%%
 
 class fit_learning_curve:
-    '''Fit a multi-parameter learning curve to an animal's performance data'''
+    '''Fit a multi-parameter learning curve to an animal's performance data
+    
+    Attributes
+    ----------
+    parameter_names: list, the names of the parameters to estimate
+    params: numpy array, the estimates for the respective parameters
+    pcov: numpy array, the covarinace matrix between the different parameters
+    estimate_std: numpy array, the standard deviation of the parameter estimate
+    
+    Methods
+    -------
+    estimate_params: Find the parameters that best fit the provided data
+    reconstruct: Reconstruct the curve from a set of x values
+    sigmoid: Only internal use, is passed as callable to estimate_params
+    
+    Usage (step-wise)
+    -----
+    learning_curve = fit_learning_curve() # initialize the object
+    learning_curve.estimate_params(training_x, training_y) #get the parm estimate
+    y = learning_curve.reconstruct(test_x) #reconstruct the curve to plot later
+    '''
     
     def __init__(self, parameter_names = ['inflection_point', 'slope', 'maximum', 'minimum']):
                  self.parameter_names = parameter_names
                  
-    def sigmoid(self, x, x0, tau, ma, mi):
+    def sigmoid(self, x, inflection_point, slope, maximum, minimum):
+        '''Define the function for the fitting procedure.
+        
+        Parameters
+        ---------
+        x: numpy array, vector of x-vlaues for the fit.
+        inflection_point: float, parameter to be estimated
+        slope: float, parameter to be estimated
+        maximum: float, parameter to be estimated
+        minimum: float, parameter to be estimated
+        
+        Returns
+        -------
+        y: float, unused here
+        
+        Usage
+        .....
+        -> Pass as callable to curve_fit
+        
+        '''
         
         import numpy as np
-        
-        y = mi +  ma / (1 + np.exp(-tau*(x-x0)))
+        y = minimum +  maximum / (1 + np.exp(-slope * (x - inflection_point)))
         return y
                  
     def estimate_params(self, training_x, training_y):
+        '''Estimate the unknown parapmeters of the defined learning function.
+        
+        Parameters
+        ----------
+        training_x: numpy array, vector of x data to fit the relationship
+        training_y: numpy array, corresponding y values.
+        
+        Returns
+        -------
+        
+        
+        Usage
+        -----
+        learning_curve.estimate_params(training_x, training_y)
+         
+        '''
         import numpy as np
         from scipy.optimize import curve_fit
         popt, pcov = curve_fit(self.sigmoid, training_x, training_y)
-        self.parameters = popt 
-        self.pcov = pcov
-        self.estimate_std = np.sqrt(np.diag(pcov))
+        self.parameters = popt # ptions contain the parameter estimates in the order of parameter_names
+        self.pcov = pcov # Covariance matrix between the parameter estimates
+        self.estimate_std = np.sqrt(np.diag(pcov)) # The standard deviation of the parameter estimate
 
     def reconstruct(self, test_x):
+        '''Reconstruct the fitted learning curve on a specified sample of x values
+        using the estimated parameters from the training data.
+        
+        Parameters
+        ----------
+        test_x: numpy array, set of x-values for reconstruction of the learning
+                curve.
+                
+        Returns
+        -------
+        y: numpy array,reconstructed y values for the input data provided.
+        
+        Usage
+        -----
+        y = learning_curve.reconstruct(test_x)
+        
+        '''
         import numpy as np
         y = self.parameters[3] + self.parameters[2] / (1 + np.exp(-self.parameters[1] * (test_x - self.parameters[0])))
-   
         return y
    
     
