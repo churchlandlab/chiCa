@@ -72,6 +72,11 @@ def convert_specified_behavior_sessions(file_names):
                 trialevents = pd.DataFrame(trialevents)
                 trialdata = pd.merge(trialevents,trialstates,left_index=True, right_index=True)
                 
+                # Insert a column for DemonWrongChoice in trialda if necessary
+                if 'DemonWrongChoice' not in trialdata.columns:
+                    trialdata.insert(trialdata.shape[1], 'DemonWrongChoice', [np.array([np.nan, np.nan])] * trialdata.shape[0])
+                
+                
                 #Add response and stimulus train related information: correct side, rate, event occurence time stamps
                 trialdata.insert(trialdata.shape[1], 'response_side', sesdata['ResponseSide'].tolist())
                 trialdata.insert(trialdata.shape[1], 'correct_side', sesdata['CorrectSide'].tolist())
@@ -96,8 +101,13 @@ def convert_specified_behavior_sessions(file_names):
                 event_times = []
                 event_duration = sesdata['StimulusDuration'].tolist()[0]
                 for t in range(trialdata.shape[0]):
-                    temp_isi = sesdata['InterStimulusIntervalList'].tolist().tolist()[t][tmp_modality_numeric[t]-1]
-                    #Index into the corresponding trial and find the isi for the corresponding modality
+                    if tmp_modality_numeric[t] < 3: #Unisensory
+                        temp_isi = sesdata['InterStimulusIntervalList'].tolist().tolist()[t][tmp_modality_numeric[t]-1]
+                        #Index into the corresponding trial and find the isi for the corresponding modality
+                    else:
+                        temp_isi = sesdata['InterStimulusIntervalList'].tolist().tolist()[t][0]
+                        #For now assume synchronous and only look at visual stims
+                        warnings.warn('Found multisensory trials, assumed synchronous condition')
                     
                     temp_trial_event_times = [temp_isi[0]] 
                     for k in range(1,temp_isi.shape[0]-1): #Start at 1 because the first Isi is already the timestamp after the play stimulus
@@ -109,11 +119,15 @@ def convert_specified_behavior_sessions(file_names):
                 
                 #Insert the outcome record for faster access to the different trial outcomes
                 trialdata.insert(0, 'outcome_record', sesdata['OutcomeRecord'].tolist())
-                tmp = sesdata['TrialDelays'].tolist()
-                for key in tmp[0].dtype.fields.keys(): #Find all the keys and extract the data associated with them
-                    tmp_delay = tmp[key].tolist()
-                    trialdata.insert(trialdata.shape[1], key , tmp_delay)
                 
+                try: 
+                    tmp = sesdata['TrialDelays'].tolist()
+                    for key in tmp[0].dtype.fields.keys(): #Find all the keys and extract the data associated with them
+                        tmp_delay = tmp[key].tolist()
+                        trialdata.insert(trialdata.shape[1], key , tmp_delay)
+                except:
+                    print('For this version of chipmunk the task delays struct was not implemented yet.\nDid not generate the respective columns in the data frame.')
+                    
                 tmp = sesdata['ActualWaitTime'].tolist()
                 trialdata.insert(trialdata.shape[1], 'actual_wait_time' , tmp)
                 #TEMPORARY: import the demonstrator and observer id
@@ -138,6 +152,10 @@ def convert_specified_behavior_sessions(file_names):
                     tmp = sesdata['TrialSettings'].tolist()
                     trialdata.insert(trialdata.shape[1], 'dobserver_ID' , tmp['obsID'].tolist())
                     
+                    
+                #Finally, verify the the number of trials
+                
+                
                 #----Now the saving
                 trialdata.to_hdf(os.path.splitext(current_file)[0] + '.h5', '/Data') #Save as hdf5
                 converted_files.append(os.path.splitext(current_file)[0] + '.h5') #Keep record of the converted files
@@ -227,24 +245,27 @@ def pick_files_multi_session(data_type, file_extension, file_keyword = None):
         search_path = os.path.join(p, data_type, file_extension) #Construct the search path to identify the desired files in the data_type directory
         tmp = glob.glob(search_path)
         
-        match_description = []
-        
-        if file_keyword is not None: #Check for a certain keyword inside the file name
-            for candidate_file in tmp:
-                candidate_name = os.path.split(candidate_file)[1]
-                result = candidate_name.find(file_keyword)
-                if result > -1:
-                    match_description.append(candidate_file)        
-        else: #No key word is given
-            match_description.append(tmp)
-        
-        #Check if more than one file matches the description
-        if len(match_description) > 1: #Multiple files were found
-                raise ValueError(f'More than one file matching the keyword were found in the following search path:\n{search_path}')    
-        elif len(match_description) == 0:
-                pass #Just ignore if no file has been found
-        else:
-                file_names.append(match_description[0])
+        if len(tmp) > 0: #Skip when no files found
+            match_description = []
+            if file_keyword is not None: #Check for a certain keyword inside the file name
+                for candidate_file in tmp:
+                    candidate_name = os.path.split(candidate_file)[1]
+                    result = candidate_name.find(file_keyword)
+                    if result > -1:
+                        match_description.append(candidate_file)        
+            else: #No key word is given
+                if len(tmp) > 1:
+                    raise ValueError('Multiple files of same datatype and with same extension were found. Please provide a search keyword.')
+                else:
+                    match_description.append(tmp[0])
+            
+            #Check if more than one file matches the description
+            if len(match_description) > 1: #Multiple files were found
+                    raise ValueError(f'More than one file matching the keyword were found in the following search path:\n{search_path}')    
+            elif len(match_description) == 0:
+                    pass #Just ignore if no file has been found
+            else:
+                    file_names.append(match_description[0])
     
     return file_names
 

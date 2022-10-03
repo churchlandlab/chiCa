@@ -73,8 +73,30 @@ class fit_learning_curve:
     
     def __init__(self, parameter_names = ['inflection_point', 'slope', 'maximum', 'minimum']):
                  self.parameter_names = parameter_names
-                 
-    def sigmoid(self, x, inflection_point, slope, maximum, minimum):
+      
+    # #-----
+    # def four_parameter_sigmoid(self, x, inflection_point, slope, maximum, minimum):
+    #     '''Define the function for the fitting procedure.
+        
+    #     Parameters
+    #     ---------
+    #     x: numpy array, vector of x-vlaues for the fit.
+    #     inflection_point: float, parameter to be estimated
+    #     slope: float, parameter to be estimated
+    #     maximum: float, parameter to be estimated
+    #     minimum: float, parameter to be estimated
+        
+    #     Returns
+    #     -------
+    #     y: float, unused here
+        
+    #     Usage
+    #     .....
+    #     -> Pass as callable to curve_fit
+        
+    #     '''
+    #---    
+    def four_parameter_sigmoid(self, x, inflection_point, slope, maximum, minimum):
         '''Define the function for the fitting procedure.
         
         Parameters
@@ -83,7 +105,6 @@ class fit_learning_curve:
         inflection_point: float, parameter to be estimated
         slope: float, parameter to be estimated
         maximum: float, parameter to be estimated
-        minimum: float, parameter to be estimated
         
         Returns
         -------
@@ -96,10 +117,10 @@ class fit_learning_curve:
         '''
         
         import numpy as np
-        y = minimum +  maximum / (1 + np.exp(-slope * (x - inflection_point)))
+        y = minimum + maximum / (1 + np.exp(-slope * (x - inflection_point)))
         return y
                  
-    def estimate_params(self, training_x, training_y):
+    def estimate_params(self, training_x, training_y, init_values = None):
         '''Estimate the unknown parapmeters of the defined learning function.
         
         Parameters
@@ -118,7 +139,18 @@ class fit_learning_curve:
         '''
         import numpy as np
         from scipy.optimize import curve_fit
-        popt, pcov = curve_fit(self.sigmoid, training_x, training_y)
+        
+        if init_values is not None:
+        #Use some heuristic here to pass a more reasonable starting point for the parameter search
+            dummy_infl = training_x.shape[0] / 2 #Assume that the animal learn in the middle of the passed trials
+            dummy_slope = (np.mean(training_y[int(training_x.shape[0]/2):training_x.shape[0]]) - np.mean(training_y[0:int(training_x.shape[0]/2)])) / training_x.shape[0]
+        #Assume the difference between the first half and the second half divided by total number of samples 
+            dummy_max = np.mean(training_y[int(training_x.shape[0]/2):training_x.shape[0]]) #Assume average of second half
+            dummy_min = np.mean(training_y[0:int(training_x.shape[0]/2)]) #Assume average of first half
+        
+            init_values = np.array([dummy_infl, dummy_slope, dummy_max, dummy_min]) #Assemble to array-like structure
+        
+        popt, pcov = curve_fit(self.four_parameter_sigmoid, training_x, training_y, init_values)
         self.parameters = popt # ptions contain the parameter estimates in the order of parameter_names
         self.pcov = pcov # Covariance matrix between the parameter estimates
         self.estimate_std = np.sqrt(np.diag(pcov)) # The standard deviation of the parameter estimate
@@ -149,8 +181,116 @@ class fit_learning_curve:
     
 ##############################################################################  
 #%%
+def choice_strategy(response_side, correct_side, stim_rates,
+                    contingency_multiplier = 1, category_boundary = 12, window = None,
+                    k_folds = 5, subsampling_rounds = 100, model_params = None):
+    '''xxx'''
+    
+    
+    
+    import numpy as np 
+    import pandas as pd
+    import multiprocessing as mp #To run the model fitting in parallel   
+    import decoding_utils
+    import time
+    
+    #---Input check
+    if not model_params:
+        penalty='none' #Do not regularize the model, allow all the features to shine!
+        inverse_regularization_strength = 1 
+        solver='newton-cg'
+        fit_intercept = True
+        model_params = {'penalty': penalty, 'inverse_regularization_strength': inverse_regularization_strength, 'solver': solver, 'fit_intercept': fit_intercept}
+   
+    secondary_labels = None #No balancing for another class required here 
+   
+    #---Prepare the data
+    valid_trials = np.isnan(response_side)==0
+    outcome = np.squeeze(np.array([response_side == correct_side], dtype=float))
+    outcome[np.isnan(response_side)] = np.nan
+    
+    #---Find choices and outcomes from previous trial
+    prior_response = decoding_utils.determine_prior_variable(response_side, valid_trials, 1)
+    prior_outcome = decoding_utils.determine_prior_variable(outcome, valid_trials, 1)
+    prior_category = decoding_utils.determine_prior_variable(correct_side, valid_trials, 1)
+    
+    #Find the prior trial's successes and failures and the relative signed stimulus strength
+    prior_right_success = np.zeros([response_side.shape[0]]) * np.nan
+    prior_right_failure = np.zeros([response_side.shape[0]]) * np.nan
+    signed_stim_strength = np.zeros([response_side.shape[0]]) * np.nan
+    
+    for k in range(response_side.shape[0]):
+        if np.isnan(prior_response[k]) == 0:
+            if prior_response[k] == 1:
+                if prior_outcome[k] == 1:
+                    prior_right_success[k] = 1
+                    prior_right_failure[k] = 0
+                elif prior_outcome[k] == 0:
+                    prior_right_success[k] = 0
+                    prior_right_failure[k] = 1
+            elif prior_response[k] == 0:
+                if prior_outcome[k] == 1:
+                    prior_right_success[k] = -1
+                    prior_right_failure[k] = 0
+                elif prior_outcome[k] == 0:
+                    prior_right_success[k] = 0
+                    prior_right_failure[k] = -1
+            signed_stim_strength[k] = contingency_multiplier * (stim_rates[k] - category_boundary)
+    
+    intercept = np.ones([response_side.shape[0]]) #Explicitly fit an intercept term to check for general right side biases
+    include_trials = np.where((np.isnan(response_side)==0) & (np.isnan(prior_right_success)==0))[0] #Only include trials with choice info in sequence
+    
+    if not window:
+        #Build the design matrix with, in order: bias term, signed stim strength, prior success (1 = on right, -1 = on left, 0 = failure), prior failure
+        data = np.transpose(np.vstack((intercept[include_trials], signed_stim_strength[include_trials], prior_right_success[include_trials], prior_right_failure[include_trials])))
+        labels = response_side[include_trials]
+        #Fit the model
+        choice_strategy_models = decoding_utils.balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, secondary_labels, model_params)
+        
+    else: #When the evolution should be tracekd 
+        #Build the design matrices and label vectors
+        data_list = []
+        label_list = []
+        performance = [] #Average performance over the time window
+        trial_index = [] #The trial in the center of the window
+        for k in range(int(window/2), int(include_trials.shape[0]- window/2)):
+            #Build the design matrix with, in order: bias term, signed stim strength, prior success (1 = on right, -1 = on left, 0 = failure), prior failure
+            data_list.append(np.transpose(np.vstack((intercept[include_trials[int(k-window/2) : int(k+window/2)]],
+                                                     signed_stim_strength[include_trials[int(k-window/2) : int(k+window/2)]],
+                                                     prior_right_success[include_trials[int(k-window/2) : int(k+window/2)]],
+                                                     prior_right_failure[include_trials[int(k-window/2) : int(k+window/2)]]))))
+            label_list.append(response_side[include_trials[int(k-window/2) : int(k+window/2)]])
+            performance.append(np.mean(response_side[include_trials[int(k-window/2) : int(k+window/2)]] == correct_side[include_trials[int(k-window/2) : int(k+window/2)]]))
+            trial_index.append(k)
+        
+        if __name__ == '__main__': #This part is required for using multiprocessing within this script, check for the main process?
+            import numpy as np 
+            import pandas as pd
+            import multiprocessing as mp #To run the model fitting in parallel   
+            import decoding_utils
+            import time
+            start_parallel = time.time() #Measure the time
+            steps = len(data_list) #Check the number of steps in the data
+            par_pool = mp.Pool(mp.cpu_count())
+            output_models = par_pool.starmap(decoding_utils.balanced_logistic_model_training,
+                                     [(data_list[k], label_list[k], k_folds, subsampling_rounds, secondary_labels, model_params
+                                       ) for k in range(steps)])
+
+            par_pool.close()
+            stop_parallel = time.time()
+            print('-------------------------------------------')
+            print(f'Done fitting the models in {round(stop_parallel - start_parallel)} seconds')
+        
+            #Create a data frame that holds all the model data frames
+            choice_strategy_models = pd.DataFrame([output_models, performance, trial_index]).T
+            choice_strategy_models.columns = ['models', 'animal_performance', 'trial_index']
+   
+    return choice_strategy_models
+
+
+#%%
 #if __name__ == '__main__': #This part is required for using multiprocessing within this script. Why?
-def choice_strategy(session_dir):
+def choice_strategy_draft(session_dir):
     '''xxx'''
     import numpy as np
     import pandas as pd

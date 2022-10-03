@@ -13,9 +13,7 @@ of the script.
 
 
 
-
-
-align_to_state = 'OutcomePresentation'
+align_to_state = 'DemonWaitForWithdrawalFromCenter'
 
 state_start_frame = state_time_stamps(align_to_state, trialdata, average_interval)
 aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)
@@ -43,7 +41,9 @@ tmp_sem = np.nanstd(aligned_signal[:,grouping_variable], axis=1)/np.sqrt(np.sum(
 
 
 plax[0].fill_between(x_vect, tmp_mean-tmp_sem, tmp_mean+tmp_sem , color=color_specs[0], alpha=0.2) #Right in red
-plax[0].plot(x_vect, tmp_mean, color=color_specs[0], label=line_labels[0]) #Right in red
+plax[0].plot(x_vect, tmp_mean, color=color_specs[0], 
+
+label=line_labels[0]) #Right in red
 
 #Right chosen right correct
 grouping_variable = np.squeeze(np.array([(prior_choice==1) & (prior_outcome==1)])) #Squeeze the second dimension

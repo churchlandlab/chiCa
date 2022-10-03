@@ -218,7 +218,7 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
     k_folds: int, number of folds to perform cross-validation on
     model_params: dict, specifies model parameters. The keys are: penalty 
                   (the type of regularization to be applied),
-                  inverse_regularization_strength, solver 
+                  inverse_regularization_strength, solver, fit_intercept
                   
     Returns
     -------
@@ -239,6 +239,7 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
         penalty='l1' 
         inverse_regularization_strength = 1 
         solver='liblinear'
+        fit_intercept = True
         model_params = {'penalty': penalty, 'inverse_regularization_strength': inverse_regularization_strength, 'solver': solver}
         #Re-create the model_params to store the defaults 
         
@@ -246,6 +247,7 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
         penalty = model_params['penalty']
         inverse_regularization_strength = model_params['inverse_regularization_strength']
         solver = model_params['solver']
+        fit_intercept = model_params['fit_intercept']
         # Mysteriously this loop does not work inside the function
         # for key,val in model_params.items():
         #     exec(key + '=val')
@@ -269,9 +271,9 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
         y_train, y_test = labels[train_index], labels[test_index]
         y_train_shuffled = np.random.permutation(y_train) #Shuffle the labels of the training data for the control
         #The actual model
-        log_reg = LogisticRegression(penalty = penalty, C = inverse_regularization_strength, solver = solver).fit(X_train,y_train)
+        log_reg = LogisticRegression(penalty = penalty, C = inverse_regularization_strength, solver = solver, fit_intercept = fit_intercept).fit(X_train,y_train)
         #The shuffled control
-        log_reg_shuffled = LogisticRegression(penalty = penalty, C = inverse_regularization_strength, solver = solver).fit(X_train,y_train_shuffled)
+        log_reg_shuffled = LogisticRegression(penalty = penalty, C = inverse_regularization_strength, solver = solver, fit_intercept = fit_intercept).fit(X_train,y_train_shuffled)
         
         models['model_accuracy'][n] = log_reg.score(X_test, y_test)
         models['model_coefficients'][n] = log_reg.coef_
@@ -352,3 +354,155 @@ def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, 
     return log_reg_models
     
     
+#%%---Pipeline for training linear regression models with a number of cross-validations
+def train_linear_regression(x_data, y_data, k_folds, fit_intercept=True):
+    '''Corss-validated linear regression models and perform
+    a shuffled control.
+    
+    Parameters
+    ----------
+    x_data: numpy array, rows are observations and columns are features.
+    y_data: numpy array, array of responses, rows are observations.
+    k_folds: int, number of folds to perform cross-validation on
+    fit_intercept: boolean, include a static term
+                  
+    Returns
+    -------
+    models: pandas dataframe, results of the model fitting.
+    
+    Examples
+    --------
+    models = train_linear_regression(x_data, y_data, 10, fit_intercept = True)
+        '''
+
+    import numpy as np
+    import pandas as pd
+    from sklearn.model_selection import KFold   
+    from sklearn.linear_model import LinearRegression
+
+    #Set up the dataframe to store the training outputs 
+    models = pd.DataFrame(columns=['model_r_squared', 'model_coefficients', 'model_intercept', 'model_singular_value', 'model_rank',
+                                    'shuffle_r_squared', 'shuffle_coefficients', 'shuffle_intercept', 'shuffle_singular_value', 'shuffle_rank',
+                                     'fold_number','number_of_samples'],
+                          index=range(0, k_folds))
+            
+    kf = KFold(n_splits = k_folds, shuffle = True) # Shuffle the observations for cross-validation to make sure 
+    #that the full range of y values is represented in the model fits.
+
+    kf.get_n_splits(x_data, y_data) #Comupte the respective splits, is this actually necessary?
+    k_fold_generator = kf.split(x_data, y_data) #This returns a generator object that spits out a different split at each call
+    
+    #Train the regression model
+    for n in range(k_folds):
+        train_index, test_index = k_fold_generator.__next__() #This is how the generator has to be called if not directly looped over
+        X_train, X_test = x_data[train_index], x_data[test_index]
+        y_train, y_test = y_data[train_index], y_data[test_index]
+        y_train_shuffled = np.random.permutation(y_train) #Shuffle the labels of the training data for the control
+        
+        #The actual model
+        lin_reg = LinearRegression(fit_intercept = fit_intercept).fit(X_train,y_train)
+        #The shuffled control
+        lin_reg_shuffled = LinearRegression(fit_intercept = fit_intercept).fit(X_train,y_train_shuffled)
+        
+        models['model_r_squared'][n] = lin_reg.score(X_test, y_test)
+        models['model_coefficients'][n] = lin_reg.coef_ #all arrays
+        models['model_intercept'][n] = lin_reg.intercept_
+        models['model_singular_value'][n] = lin_reg.singular_
+        models['model_rank'][n] = lin_reg.rank_ #Is an int already
+        
+        models['shuffle_r_squared'][n] = lin_reg_shuffled.score(X_test, y_test)
+        models['shuffle_coefficients'][n] = lin_reg_shuffled.coef_
+        models['shuffle_intercept'][n] = lin_reg_shuffled.intercept_
+        models['shuffle_singular_value'][n] = lin_reg_shuffled.singular_
+        models['shuffle_rank'][n] = lin_reg_shuffled.rank_
+
+        models['fold_number'][n] = n
+        models['number_of_samples'][n]= X_train.shape[0]
+    
+    return models
+
+#%%---Pipeline for Lasso regression (linear regression with l1 regularization)
+def train_lasso_model(x_data, y_data, k_folds, alpha = None, fit_intercept = True):
+    '''Corss-validated linear regression model with l1 regularization. Lasso shrinks
+        many of the model coefficients to 0 and thus effectively performs
+        model selection.
+    
+    Parameters
+    ----------
+    x_data: numpy array, rows are observations and columns are features.
+    y_data: numpy array, array of responses, rows are observations.
+    k_folds: int, number of folds to perform cross-validation on
+    alpha: list of float or None, the regularization strength. If a list is passed
+           the function will determine the best of the provided regularization 
+           strengths. The list can also hold a single element.
+           If None is provided the best alpha will be determined from a default
+           set of values, which are: 0.001, 0.01, 0.1,  1, 10, 100  
+    fit_intercept: boolean, include a static term
+                  
+    Returns
+    -------
+    models: pandas dataframe, results of the model fitting.
+    
+    Examples
+    --------
+    models = train_lasso_model(x_data, y_data, 10, alpha = [0.01, 0.1, 1], fit_intercept = True)
+        '''
+
+    import numpy as np
+    import pandas as pd
+    from sklearn.model_selection import KFold   
+    from sklearn.linear_model import Lasso
+
+    #Input check for the regularization strength
+    if alpha is None:
+        alpha = [0.001, 0.01, 0.1,  1, 10, 100]
+
+    #Set up the dataframe to store the training outputs 
+    models = pd.DataFrame(columns=['model_r_squared', 'model_coefficients', 'model_intercept', 'model_dual_gap',
+                                    'shuffle_r_squared', 'shuffle_coefficients', 'shuffle_intercept', 'shuffle_dual_gap',
+                                     'cv_R_squared','alpha_values', 'best_alpha', 'fold_number','number_of_samples'],
+                          index=range(0, k_folds))
+            
+    kf = KFold(n_splits = k_folds, shuffle = True) # Shuffle the observations for cross-validation to make sure 
+    #that the full range of y values is represented in the model fits.
+
+    kf.get_n_splits(x_data, y_data) #Comupte the respective splits, is this actually necessary?
+    k_fold_generator = kf.split(x_data, y_data) #This returns a generator object that spits out a different splitNo documentation available  at each call
+    
+    #Train the regression model
+    for n in range(k_folds):
+        train_index, test_index = k_fold_generator.__next__() #This is how the generator has to be called if not directly looped over
+        X_train, X_test = x_data[train_index], x_data[test_index]
+        y_train, y_test = y_data[train_index], y_data[test_index]
+        y_train_shuffled = np.random.permutation(y_train) #Shuffle the labels of the training data for the control
+        
+        lasso_model = [] #Initialize lists for the model objects
+        lasso_shuffle = []
+        cv_R_squared = [] #Also prepare a list for the cross-validated R-squared values for the models with different regularization strengths        
+        for reg_strength in alpha:
+            #The actual model
+            lasso_model.append(Lasso(alpha = reg_strength, fit_intercept = fit_intercept).fit(X_train,y_train))
+            cv_R_squared.append(lasso_model[-1].score(X_test, y_test))                 
+            #The shuffled control
+            lasso_shuffle.append(Lasso(alpha = reg_strength, fit_intercept = fit_intercept).fit(X_train,y_train_shuffled))
+        
+        #Select the best model
+        best_model = np.where(np.array(cv_R_squared) == np.max(cv_R_squared))[0][0]
+        
+        models['model_r_squared'][n] = np.max(cv_R_squared) #Best model maximizes the explained variance
+        models['model_coefficients'][n] = lasso_model[best_model].coef_ #all arrays
+        models['model_intercept'][n] = lasso_model[best_model].intercept_
+        models['model_dual_gap'][n] = lasso_model[best_model].dual_gap_
+        
+        models['shuffle_r_squared'][n] = lasso_shuffle[best_model].score(X_test, y_test)
+        models['shuffle_coefficients'][n] = lasso_shuffle[best_model].coef_
+        models['shuffle_intercept'][n] = lasso_shuffle[best_model].intercept_
+        models['shuffle_dual_gap'][n] = lasso_shuffle[best_model].dual_gap_
+
+        models['cv_R_squared'][n] = cv_R_squared
+        models['alpha_values'][n] = alpha
+        models['best_alpha'][n] = alpha[best_model]
+        models['fold_number'][n] = n
+        models['number_of_samples'][n]= X_train.shape[0]
+    
+    return models
