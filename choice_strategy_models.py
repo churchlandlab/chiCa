@@ -267,8 +267,12 @@ def choice_strategy(response_side, correct_side, stim_rates,
             import numpy as np 
             import pandas as pd
             import multiprocessing as mp #To run the model fitting in parallel   
-            import decoding_utils
             import time
+            import sys
+            sys.path.append('C:/Users/Anne/Documents/chiCa') #Include the path to the functions
+            import decoding_utils
+            
+            
             start_parallel = time.time() #Measure the time
             steps = len(data_list) #Check the number of steps in the data
             par_pool = mp.Pool(mp.cpu_count())

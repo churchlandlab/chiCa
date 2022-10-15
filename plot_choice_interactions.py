@@ -13,7 +13,8 @@ of the script.
 
 
 
-align_to_state = 'DemonWaitForWithdrawalFromCenter'
+align_to_state = 'PlayStimulus'
+#align_to_state = 'DemonWaitForWithdrawalFromCenter'
 
 state_start_frame = state_time_stamps(align_to_state, trialdata, average_interval)
 aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, average_interval, window)

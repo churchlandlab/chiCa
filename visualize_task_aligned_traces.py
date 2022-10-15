@@ -112,10 +112,11 @@ if __name__ == '__main__':
            seconds. This is messy!'''
            
         interval = np.floor(average_interval)/1000 #Short hand for the average interval between frames, assumes scope acquisition is slower than expected
-        aligned_signal = np.zeros([int(window/interval +1), len(state_start_frame)])
+        interval_frames = round(window/interval)
+        aligned_signal = np.zeros([interval_frames, len(state_start_frame)])
         for n in range(len(state_start_frame)):
             if np.isnan(state_start_frame[n]) == 0:
-               aligned_signal[:, n] = signal[current_neuron, int(state_start_frame[n] - window/interval /2) : int(state_start_frame[n]  + window/interval /2 + 1)]
+               aligned_signal[:, n] = signal[current_neuron, state_start_frame[n] - int(interval_frames /2) : state_start_frame[n]  + int(interval_frames /2) + 1]
             else: 
                aligned_signal[:,n] = np.nan
           

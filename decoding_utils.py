@@ -98,38 +98,73 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
 
 
 #%%------------Track task variable in past trials
-def determine_prior_variable(tracked_variable, valid_trials, consecutive_trials_back=1):
-    '''Get the label of a task variable or action on a preceeding trial. This 
-    function ensures that all the trials between the one we look for and the current
-    one are valid, meaning there was a response.
+def determine_prior_variable(tracked_variable, include_trials, trials_back = 1, mode = 'consecutive'):
+    '''Get the label of a task variable or action on a preceeding trial a specified
+    number of trials back. The user my specifiy a set of trials at present time 
+    for which the task variables at the prior trial should be retrieved. The
+    mode allows the user to specifiy how to evaluate the history of the tracked
+    variable. 'consecutive' will only consider a sequence of consecutive trails 
+    where the variable was valid, 'independent' will ignore all trials between
+    the current time point and the amount of trials back and only consider the 
+    tracked variable at the specified timepoint and 'memory' will keep track of
+    the variable and look at the value it held at the specified amount of valid
+    trials back.
+   
+   Illustration (when all the trials are included): 
+   Input:
+       [1, 1, nan, 0, 1, 0, nan, 0 ]
+   Output (trials_back = 2, mode = 'consecutive'):
+       [nan, nan, 1, nan, nan, 0, 1, nan]
+   Output (trials_back = 2, mode = 'independent'):
+       [nan, nan, 1, 1, nan, 0, 1, 0]
+   Output (trials_back = 2, mode = 'memory'):
+       [nan, nan, 1, 1, 1, 0, 1, 0]
+    
     
     Parameters
     ----------
     tracked_variable: a numpy array of the variable to be tracked
-    valid_trials: numpy array of trials with a choice
-    consecutive_trials_back: numpy array that sets at what trial in the past
-                             the prior variable should be assesed if all the
-                             trialsup to the current have been valid.
+    include_trials: numpy array of zeros and ones for trials that should be
+                    considered, for instance trials with a choice.
+    trials_back: numpy array that sets at what trial in the past
+                 the prior variable should be assesed.
+    force_consecutive: boolean, Enforce that all the trials between trials back
+                       the moment of evaluation are valid and thus do not contain
+                       nan.
                              
     Returns
     -------
     prior_label: numpy array of the label of the tracked variable at trial = 
-                 consecutive_trials_back.
+                 trials_back.
                  
     Examples
     --------
-    prior_label = determine_prior_variable(tracked_variable, valid_trials, consecutive_trials_back)
-    prior_label = determine_prior_variable(tracked_variable, valid_trials)
+    prior_label = determine_prior_variable(tracked_variable, include_trials, trials_back)
+    prior_label = determine_prior_variable(tracked_variable, include_trials)
     '''
     
     import numpy as np
     
     prior_label = np.zeros([tracked_variable.shape[0]]) * np.nan
+    remember_last = np.nan #This is the track of the last trial where the variable was valid
     
-    for n in range(consecutive_trials_back, tracked_variable.shape[0]): #First time this can be detected is after consecutive_trials_back
-            if np.isnan(tracked_variable[n - consecutive_trials_back]) == 0: #Make sure variable to be tracked is not Nan for the trial in question, might be redundant
-                if np.nansum(valid_trials[n - consecutive_trials_back : n+1]) == consecutive_trials_back + 1: #Only include if all consecutive trials are valid.
-                    prior_label[n] = tracked_variable[n - consecutive_trials_back]
+    for n in range(trials_back, tracked_variable.shape[0]): #First time this can be detected is after consecutive_trials_back
+        if mode == 'consecutive':
+            if np.isnan(tracked_variable[n - trials_back]) == 0: #Make sure variable to be tracked is not Nan for the trial in question, might be redundant
+                if np.sum(np.isnan(tracked_variable[n - trials_back : n ])==0) == trials_back: #Only include if all consecutive trials are valid.
+                    prior_label[n] = tracked_variable[n - trials_back]
+        elif mode == 'independent':
+             if include_trials[n]: #Only assign a value for the desired trials    
+                    prior_label[n] = tracked_variable[n - trials_back]
+        elif mode == 'memory':
+            if np.isnan(tracked_variable[n - trials_back]) == 0: #If at the specified time in the past the variable was valid
+                if include_trials[n]: #Only assign a value for the desired trials    
+                    prior_label[n] = tracked_variable[n - trials_back]
+                #But remember the past anyway
+                remember_last = tracked_variable[n - trials_back] #Update the memory to assign last valid observation if there is a stretch of invalid ones following
+            else:
+                if include_trials[n]: #Only assign a value for the desired trials    
+                    prior_label[n] = remember_last             
     
     return prior_label
 
