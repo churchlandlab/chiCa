@@ -120,7 +120,6 @@ def determine_prior_variable(tracked_variable, include_trials, trials_back = 1, 
    Output (trials_back = 2, mode = 'memory'):
        [nan, nan, 1, 1, 1, 0, 1, 0]
     
-    
     Parameters
     ----------
     tracked_variable: a numpy array of the variable to be tracked
@@ -134,8 +133,7 @@ def determine_prior_variable(tracked_variable, include_trials, trials_back = 1, 
                              
     Returns
     -------
-    prior_label: numpy array of the label of the tracked variable at trial = 
-                 trials_back.
+    prior_label: numpy array of the label of the tracked variable at trial = trials_back.
                  
     Examples
     --------
@@ -398,7 +396,8 @@ def train_linear_regression(x_data, y_data, k_folds, fit_intercept=True):
     ----------
     x_data: numpy array, rows are observations and columns are features.
     y_data: numpy array, array of responses, rows are observations.
-    k_folds: int, number of folds to perform cross-validation on
+    k_folds: int, number of folds to perform cross-validation on, if set to 1
+             no cross-validation is performed
     fit_intercept: boolean, include a static term
                   
     Returns
@@ -420,20 +419,31 @@ def train_linear_regression(x_data, y_data, k_folds, fit_intercept=True):
                                     'shuffle_r_squared', 'shuffle_coefficients', 'shuffle_intercept', 'shuffle_singular_value', 'shuffle_rank',
                                      'fold_number','number_of_samples'],
                           index=range(0, k_folds))
-            
-    kf = KFold(n_splits = k_folds, shuffle = True) # Shuffle the observations for cross-validation to make sure 
-    #that the full range of y values is represented in the model fits.
-
-    kf.get_n_splits(x_data, y_data) #Comupte the respective splits, is this actually necessary?
-    k_fold_generator = kf.split(x_data, y_data) #This returns a generator object that spits out a different split at each call
     
-    #Train the regression model
-    for n in range(k_folds):
-        train_index, test_index = k_fold_generator.__next__() #This is how the generator has to be called if not directly looped over
-        X_train, X_test = x_data[train_index], x_data[test_index]
-        y_train, y_test = y_data[train_index], y_data[test_index]
-        y_train_shuffled = np.random.permutation(y_train) #Shuffle the labels of the training data for the control
+    if k_folds > 1: #There are folds
+        kf = KFold(n_splits = k_folds, shuffle = True) # Shuffle the observations for cross-validation to make sure 
+        #that the full range of y values is represented in the model fits.
+    
+        kf.get_n_splits(x_data, y_data) #Comupte the respective splits, is this actually necessary?
+        k_fold_generator = kf.split(x_data, y_data) #This returns a generator object that spits out a different split at each call
         
+    elif k_folds <= 1: #There are no folds
+        k_folds = 1 #Make sure the loop can run, although it should break already when creating the data frame...
+        #Train the regression model
+        print('Fitting the model on all the data, R squared cannot be interpreted as a metric for the goodness of fit!')
+        
+    for n in range(k_folds):
+        if k_folds > 1:
+            train_index, test_index = k_fold_generator.__next__() #This is how the generator has to be called if not directly looped over
+            X_train, X_test = x_data[train_index], x_data[test_index]
+            y_train, y_test = y_data[train_index], y_data[test_index]
+            y_train_shuffled = np.random.permutation(y_train) #Shuffle the labels of the training data for the control
+        else:
+            X_train = x_data
+            X_test = x_data
+            y_train = y_data
+            y_train_shuffled = np.random.permutation(y_train) #Shuffle the labels of the training data for the control
+            y_test = y_data
         #The actual model
         lin_reg = LinearRegression(fit_intercept = fit_intercept).fit(X_train,y_train)
         #The shuffled control
@@ -452,7 +462,7 @@ def train_linear_regression(x_data, y_data, k_folds, fit_intercept=True):
         models['shuffle_rank'][n] = lin_reg_shuffled.rank_
 
         models['fold_number'][n] = n
-        models['number_of_samples'][n]= X_train.shape[0]
+        models['number_of_samples'][n]= X_train.shape[0]         
     
     return models
 
