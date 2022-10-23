@@ -283,15 +283,14 @@ def align_behavioral_video(camlog_file):
     
     Retunrs
     -------
-    trial_start_video_frames: The frames when the trials started
-    
-    camera_name: The camera identifier as recorded in the log file
-
-    video_frame_interval: The average interval between video frames in seconds
+    video_alignment_data: dict with keys: camera_name (the labbel of the camera
+                          perspective acquired), trial_starts (the frame, during
+                          which the trial start), frame_interval (average interval
+                          between frames, calculated from the entire timeseries)
                         
     Examples
     --------
-    trial_start_video_frames, camera_name, video_frame_interval = align_behavioral_video(camlog_file)
+    video_alignment_data = align_behavioral_video(camlog_file)
     '''
     
     import numpy as np
@@ -334,7 +333,8 @@ def align_behavioral_video(camlog_file):
     if not 'trial_start_video_frames' in locals():
         raise ValueError('In none of the camera channels the onset number matched the trial number. Please check the log files and camera setup.')
     
-    return trial_start_video_frames, camera_name, video_frame_interval
+    video_alignment_data = dict({'camera_name': camera_name, 'tria_starts': trial_start_video_frames, 'frame_interval': video_frame_interval})
+    return video_alignment_data
     
 ###############################################################################
 #%%

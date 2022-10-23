@@ -466,6 +466,132 @@ def train_linear_regression(x_data, y_data, k_folds, fit_intercept=True):
     
     return models
 
+#%%---Pipeline for ridge regression (linear regression with l2 penalty)
+
+def train_ridge_model(x_data, y_data, k_folds, alpha = None, fit_intercept = True):
+    '''Corss-validated linear regression model with l2 regularization. Ridge shrinks
+        model coefficients that don't contribute to close to but never exactly 0.
+        This helps to prevent over-fitting without losing any of the predictors
+        because their weight is never exactly 0. When the fold nummber is 1 (or
+        below 1) then cross-validation will only be applied to find the best 
+        regularization strength but the final model will be fit to all the data.
+    
+    Parameters
+    ----------
+    x_data: numpy array, rows are observations and columns are features.
+    y_data: numpy array, array of responses, rows are observations.
+    k_folds: int, number of folds to perform cross-validation on
+    alpha: list of float or None, the regularization strength. If a list is passed
+           the function will determine the best of the provided regularization 
+           strengths. The list can also hold a single element.
+           If None is provided the best alpha will be determined from a default
+           set of values, which are: 0.001, 0.01, 0.1,  1, 10, 100  
+    fit_intercept: boolean, include a static term
+                  
+    Returns
+    -------
+    models: pandas dataframe, results of the model fitting.
+    
+    Examples
+    --------
+    models = train_ridge_model(x_data, y_data, 10, alpha = [0.01, 0.1, 1], fit_intercept = True)
+        '''
+
+    import numpy as np
+    import pandas as pd
+    from sklearn.model_selection import KFold   
+    from sklearn.linear_model import Ridge
+    from scipy.stats import mode
+
+    #Input check for the regularization strength
+    if alpha is None:
+        alpha = [0.001, 0.01, 0.1,  1, 10, 100, 1000]
+
+    #Set up the dataframe to store the training outputs 
+    models = pd.DataFrame(columns=['model_r_squared', 'model_coefficients', 'model_intercept',
+                                    'shuffle_r_squared', 'shuffle_coefficients', 'shuffle_intercept',
+                                     'cv_R_squared','alpha_values', 'best_alpha', 'fold_number','number_of_samples'],
+                          index=range(0, k_folds))
+    
+    if k_folds > 1: #There are folds
+       fold_num = k_folds #Use fold number to retain 
+       
+    elif k_folds <= 1: #Train the final model on all the data but optimize the regularization strength on 10 folds
+        k_folds = 1 #Make sure the loop can run, although it should break already when creating the data frame...
+        #Train the regression model
+        fold_num = 10
+        best_regularization = np.zeros(fold_num) #Allocate this to store the best regularization strength per fold
+        print('Fitting the model on all the data but using 10-fold cross validation to determine regularization strength')
+        
+    
+    
+    kf = KFold(n_splits = fold_num, shuffle = True) # Shuffle the observations for cross-validation to make sure 
+    #that the full range of y values is represented in the model fits.
+
+    kf.get_n_splits(x_data, y_data) #Comupte the respective splits, is this actually necessary?
+    k_fold_generator = kf.split(x_data, y_data) #This returns a generator object that spits out a different splitNo documentation available  at each call
+    
+    #Train the regression model
+    for n in range(fold_num):
+        train_index, test_index = k_fold_generator.__next__() #This is how the generator has to be called if not directly looped over
+        X_train, X_test = x_data[train_index], x_data[test_index]
+        y_train, y_test = y_data[train_index], y_data[test_index]
+        y_train_shuffled = np.random.permutation(y_train) #Shuffle the labels of the training data for the control
+        
+        ridge_model = [] #Initialize lists for the model objects
+        ridge_shuffle = []
+        cv_R_squared = [] #Also prepare a list for the cross-validated R-squared values for the models with different regularization strengths        
+        for reg_strength in alpha:
+            #The actual model
+            ridge_model.append(Ridge(alpha = reg_strength, fit_intercept = fit_intercept).fit(X_train,y_train))
+            cv_R_squared.append(ridge_model[-1].score(X_test, y_test))                 
+            #The shuffled control
+            ridge_shuffle.append(Ridge(alpha = reg_strength, fit_intercept = fit_intercept).fit(X_train,y_train_shuffled))
+        
+        #Select the best model
+        best_model = np.where(np.array(cv_R_squared) == np.max(cv_R_squared))[0][0]
+        
+        if k_folds > 1:
+            models['model_r_squared'][n] = np.max(cv_R_squared) #Best model maximizes the explained variance
+            models['model_coefficients'][n] = ridge_model[best_model].coef_ #all arrays
+            models['model_intercept'][n] = ridge_model[best_model].intercept_
+            
+            models['shuffle_r_squared'][n] = ridge_shuffle[best_model].score(X_test, y_test)
+            models['shuffle_coefficients'][n] = ridge_shuffle[best_model].coef_
+            models['shuffle_intercept'][n] = ridge_shuffle[best_model].intercept_
+    
+            models['cv_R_squared'][n] = cv_R_squared
+            models['alpha_values'][n] = alpha
+            models['best_alpha'][n] = alpha[best_model]
+            models['fold_number'][n] = n
+            models['number_of_samples'][n]= X_train.shape[0]
+        elif k_folds == 1:
+            best_regularization[n] = alpha[best_model]
+        
+        #Now, if fitting will be done on all the data determine the rgularization strength and fit
+        if k_folds == 1:
+            best_alpha = mode(best_regularization)[0][0] #Get the value that was best in most cases
+            y_train_shuffled = np.random.permutation(y_data)
+            full_ridge_model = Ridge(alpha = best_alpha, fit_intercept = fit_intercept).fit(x_data,y_data)
+            full_ridge_shuffle = Ridge(alpha = best_alpha, fit_intercept = fit_intercept).fit(x_data,y_train_shuffled)
+        
+            models['model_r_squared'][0] = full_ridge_model.score(x_data, y_data)
+            models['model_coefficients'][0] = full_ridge_model.coef_ 
+            models['model_intercept'][0] = full_ridge_model.intercept_
+            
+            models['shuffle_r_squared'][0] = full_ridge_shuffle.score(x_data, y_data)
+            models['shuffle_coefficients'][0] = full_ridge_shuffle.coef_
+            models['shuffle_intercept'][0] = full_ridge_shuffle.intercept_
+    
+            models['cv_R_squared'][0] = cv_R_squared #Here this reflects the R squared values during regularization search
+            models['alpha_values'][0] = alpha
+            models['best_alpha'][0] = best_alpha
+            models['fold_number'][0] = 0
+            models['number_of_samples'][0]= x_data.shape[0]
+            
+    
+    return models
+
 #%%---Pipeline for Lasso regression (linear regression with l1 regularization)
 def train_lasso_model(x_data, y_data, k_folds, alpha = None, fit_intercept = True):
     '''Corss-validated linear regression model with l1 regularization. Lasso shrinks
@@ -551,3 +677,4 @@ def train_lasso_model(x_data, y_data, k_folds, alpha = None, fit_intercept = Tru
         models['number_of_samples'][n]= X_train.shape[0]
     
     return models
+
