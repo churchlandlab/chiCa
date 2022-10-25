@@ -166,6 +166,66 @@ def determine_prior_variable(tracked_variable, include_trials, trials_back = 1, 
     
     return prior_label
 
+#%%------Match video frames to imaging
+def match_video_to_imaging(miniscope_frames, miniscope_reference_frame,
+                           miniscope_frame_interval, video_reference_frame,
+                           video_frame_interval):
+    '''Function to pick video frames most closely occuring at the time of 
+    a series of miniscope frames. This is done based on a know common reference
+    frame (such as the trial start frame).
+    
+    Parameters
+    ---------
+    miniscope_frames: numpy array, a set of frame indices from the continuous
+                      calcium imaging data.
+    miniscope_reference_frame: int, the start frame of a trial event or similar to 
+                               serve as a reference point for the alignment
+    miniscope_frame_interval: float, average interval between frames from the 
+                              imaging session.
+    video_reference_frame: int, the start frame from a trial event as obtained
+                           for the behavioral video data.
+    video_frame_interval: float, average frame interval for behavioral video.
+                          
+    Returns
+    -------
+    matching_frames: numpy array, vector of behavioral video frames matching 
+                     most closely the miniscope frames provided.
+                     
+    Examples
+    --------
+    matching_frames = match_video_to_imaging(miniscope_frames, state_start_index,
+                                             miniscope_data['frame_interval'],
+                                             state_start_video_index,
+                                             video_alignment_data['frame_interval'])
+
+    '''
+    
+    import numpy as np
+    
+    #Initialize the output
+    matching_frames = np.zeros(miniscope_frames.shape[0]) * np.nan
+    
+    #Generate the expected timestamsp for the miniscope data
+    miniscope_timestamps = (miniscope_frames - miniscope_reference_frame) * miniscope_frame_interval
+    
+    #Find how much time needs to be covered, with 1 s safety margin
+    min_time = -1 * (np.min(miniscope_timestamps) - 1) #Convert to positive value to be able to generate a sequence starting at 0 exactly
+    max_time = np.max(miniscope_timestamps) + 1
+    
+    tmp_min = -1 * np.flip(np.arange(video_frame_interval, min_time + video_frame_interval, video_frame_interval)) #Include the zero frame 
+    tmp_max = np.arange(0,max_time + video_frame_interval,video_frame_interval) #Exclude the 0 position here
+    frame_times = np.concatenate((tmp_min, tmp_max)) #Represents the expected time of the frame acquisition
+    
+    #Go through the timestamps and find the video frame that most closely matches
+    #the occurence of the miniscope frame time
+    for k in range(miniscope_timestamps.shape[0]):
+        time_diff = np.abs(miniscope_timestamps[k] - frame_times)
+        closest = np.where(time_diff == np.min(time_diff))[0][0]
+        
+        matching_frames[k] = video_reference_frame + int(frame_times[closest] / video_frame_interval)
+    
+    return matching_frames
+
 #%%-----------Balance the data sets for top level variable and subvariable
 def balance_dataset(labels, secondary_labels = None):
     '''Balance the number of observaitions for each class in the dataset by
@@ -552,7 +612,7 @@ def train_ridge_model(x_data, y_data, k_folds, alpha = None, fit_intercept = Tru
         best_model = np.where(np.array(cv_R_squared) == np.max(cv_R_squared))[0][0]
         
         if k_folds > 1:
-            models['model_r_squared'][n] = np.max(cv_R_squared) #Best model maximizes the explained variance
+            models['model_r_squared'][n] = ridge_model[best_model].score(X_test, y_test) #Best model maximizes the explained variance
             models['model_coefficients'][n] = ridge_model[best_model].coef_ #all arrays
             models['model_intercept'][n] = ridge_model[best_model].intercept_
             
@@ -660,7 +720,7 @@ def train_lasso_model(x_data, y_data, k_folds, alpha = None, fit_intercept = Tru
         #Select the best model
         best_model = np.where(np.array(cv_R_squared) == np.max(cv_R_squared))[0][0]
         
-        models['model_r_squared'][n] = np.max(cv_R_squared) #Best model maximizes the explained variance
+        models['model_r_squared'][n] = lasso_model[best_model].score(X_test, y_test) #Best model maximizes the explained variance
         models['model_coefficients'][n] = lasso_model[best_model].coef_ #all arrays
         models['model_intercept'][n] = lasso_model[best_model].intercept_
         models['model_dual_gap'][n] = lasso_model[best_model].dual_gap_

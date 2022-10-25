@@ -333,7 +333,10 @@ def align_behavioral_video(camlog_file):
     if not 'trial_start_video_frames' in locals():
         raise ValueError('In none of the camera channels the onset number matched the trial number. Please check the log files and camera setup.')
     
-    video_alignment_data = dict({'camera_name': camera_name, 'tria_starts': trial_start_video_frames, 'frame_interval': video_frame_interval})
+    video_alignment_data = dict({'camera_name': camera_name, 'trial_starts': trial_start_video_frames, 'frame_interval': video_frame_interval})
+    
+    np.save(path.join(path.split(camlog_file)[0],'..', 'analysis', camera_name + '_alignment.npy'), video_alignment_data)
+    
     return video_alignment_data
     
 ###############################################################################
