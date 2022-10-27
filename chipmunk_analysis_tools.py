@@ -369,18 +369,22 @@ def align_miniscope_data(caiman_file):
     
     import numpy as np
     from scipy.io import loadmat
+    import pandas as pd #Reads faster than numpy!
     import glob #Search files in directory
     import matplotlib.pyplot as plt
     import warnings #Throw warning for unmatched drops
     import os #To deal with the paths and directories
-    from load_cnmfe_outputs import load_data as load_caiman #To get the processed imaging data
     from scipy.interpolate import CubicSpline #For signal interpolation
     from scipy.interpolate import interp1d
+    import sys
+    sys.path.append('C:/Users/Lukas Oesch/Documents/ChurchlandLab/chiCa')
+    from load_cnmfe_outputs import load_data as load_caiman #To get the processed imaging data
     
     #--------Sort out the location of the files-------------------------------
     session_directory = os.path.split(os.path.split(caiman_file)[0])[0] #Move up the folder hierarchy
     mscopelog_file = glob.glob(session_directory + '/miniscope/*.mscopelog')[0] #Only one such file in the directory
     mscope_tStamps_file = session_directory + '/miniscope/timeStamps.csv'
+    mscope_head_ori_file = session_directory + '/miniscope/headOrientation.csv'
     chipmunk_file = glob.glob(session_directory + '/chipmunk/*.mat')
     if len(chipmunk_file) == 0: #This is the case when it is an obsmat file, for instance
         chipmunk_file = glob.glob(session_directory + '/chipmunk/*.obsmat')
@@ -390,7 +394,18 @@ def align_miniscope_data(caiman_file):
     
     #---------All the loading----------------------------------------------
     mscope_log = np.loadtxt(mscopelog_file, delimiter = ',', skiprows = 2) #Make sure to skip over the header lines and use comma as delimiter
-    mscope_time_stamps = np.loadtxt(mscope_tStamps_file, delimiter = ',', skiprows = 1)
+    mscope_time_stamps = pd.read_csv(mscope_tStamps_file).to_numpy()
+    head_ori = pd.read_csv(mscope_head_ori_file).to_numpy() #Load head orientation and drop
+    
+    
+    #Sanity check on the timestamps file
+    include_head_orientation = True
+    if  np.where((head_ori[:,1:] == np.array([0,0,0,0])).all(-1))[0].shape[0] > 0:
+        #If all of the head orientation entries are zero at a given moment there is a 
+        #problem and the file cannot be used
+        include_head_orientation = False
+        print('The head orientation sensor seems to have crashed during the recording')
+        print('The head orientation data was not included.')
     
     temp = loadmat(chipmunk_file[0], squeeze_me=True, struct_as_record=True) #Load the behavioral data file 
     chipmunk_data = temp['SessionData']
@@ -543,6 +558,11 @@ def align_miniscope_data(caiman_file):
            F = linear_interpolation(time_vect) 
         else:
            F = F_short
+           
+        if include_head_orientation:
+             cubic_spline_interpolation = CubicSpline(leaky_time, head_ori[:,1:], axis=1)
+             head_orientation = cubic_spline_interpolation(time_vect)
+           
         
     else:
         C = C_short
@@ -565,6 +585,7 @@ def align_miniscope_data(caiman_file):
                           'C': C,
                           'S': S,
                           'F': F,
+                          'head_orientation': head_orientation,
                           'neuron_num': neuron_num,
                           'frame_rate': frame_rate,
                           'image_dims': image_dims,

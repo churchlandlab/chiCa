@@ -630,7 +630,8 @@ def train_ridge_model(x_data, y_data, k_folds, alpha = None, fit_intercept = Tru
         
         #Now, if fitting will be done on all the data determine the rgularization strength and fit
         if k_folds == 1:
-            best_alpha = mode(best_regularization)[0][0] #Get the value that was best in most cases
+            #best_alpha = mode(best_regularization)[0][0] #Get the value that was best in most cases
+            best_alpha = np.mean(best_regularization)
             y_train_shuffled = np.random.permutation(y_data)
             full_ridge_model = Ridge(alpha = best_alpha, fit_intercept = fit_intercept).fit(x_data,y_data)
             full_ridge_shuffle = Ridge(alpha = best_alpha, fit_intercept = fit_intercept).fit(x_data,y_train_shuffled)
