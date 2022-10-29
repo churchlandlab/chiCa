@@ -560,16 +560,22 @@ def align_miniscope_data(caiman_file):
            F = F_short
            
         if include_head_orientation:
-             cubic_spline_interpolation = CubicSpline(leaky_time, head_ori[:,1:], axis=1)
-             head_orientation = cubic_spline_interpolation(time_vect)
+            if head_ori.shape[0] == leaky_time.shape[0]: 
+                cubic_spline_interpolation = CubicSpline(leaky_time, head_ori[:,1:], axis=0)
+                head_orientation = cubic_spline_interpolation(time_vect)
+            else:
+                 head_orientation = None
+                 print('The head orientation data drop events do not correspond to the miniscope frame drops')
+                 print('No head orientation data was saved')
            
         
     else:
         C = C_short
         S = S_short
         F = F_short
+        head_orientation = head_ori[:,1:]
 
-    print(f'Successfully interpolated signals for {num_dropped} dropped frames')
+    print(f'Interpolated signals for {num_dropped} dropped frames')
     
     #-------Assemble a dictionary for the results
     miniscope_data = {'trial_starts': trial_start_frames, #

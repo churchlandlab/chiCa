@@ -82,7 +82,7 @@ if __name__ == '__main__':
         aligned_signal = np.zeros([interval_frames, len(state_start_frame)])
         for n in range(len(state_start_frame)):
             if np.isnan(state_start_frame[n]) == 0:
-               aligned_signal[:, n] = signal[current_neuron, int(state_start_frame[n] -  np.floor(interval_frames/2)) : int(state_start_frame[n] + np.ceil(interval_frames/2))]
+               aligned_signal[:, n] = signal[current_neuron, int(state_start_frame[n] -  np.ceil(interval_frames/2)) : int(state_start_frame[n] + np.ceil(interval_frames/2) +1)]
             else: 
                aligned_signal[:,n] = np.nan
         x_vect = np.linspace(-window/2, window/2 , aligned_signal.shape[0]) #Use linspace here to be sure that the vector sizes match

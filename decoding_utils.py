@@ -6,14 +6,19 @@ Created on Tue Mar 29 11:45:26 2022
 """
 
 #%%--------------Do z-Scoring on the calcium time series
-def standardize_signal(signal):
+def standardize_signal(signal, scale_only = False):
     '''Apply Z-scoring on the provided input signal. Make sure that cells (features)
-    are rows and samples are columns.'''
+    are rows and samples are columns.
+    Expects inputs as m features x n timepoints matrix. '''
     
     from scipy.stats import zscore
-    #import numpy as np #Don't need to import numpy because the signal is already a numpy array object that can be transposed
+    import numpy as np #Don't need to import numpy because the signal is already a numpy array object that can be transposed
     
-    st_signal = zscore(signal, axis = 1) #This is where the orientation is specified!
+    if scale_only:
+       st_signal = signal / np.std(signal, axis = 1)
+    else:
+       st_signal = zscore(signal, axis = 1) #This is where the orientation is specified!
+    
     st_signal = st_signal.transpose() #Now flip the orientation to be able to feed it into the model
     return st_signal
 
