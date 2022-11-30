@@ -341,8 +341,81 @@ def align_behavioral_video(camlog_file):
     
 ###############################################################################
 #%%
+def quaternion_to_euler(qw, qx, qy, qz, coax_position = 'l'):
+    '''Convert the quaternions from the miniscope BNO to euler angles.
+    Here the first axis of rotation is in the direction of the coax - ewl PCBs, 
+    the second one along the MCU pcb axis, and the third one along the miniscope
+    body's hight. Rotation around this last axis are always the yaw. For the two 
+    first axis whether they represent the pitch or roll will be determined by
+    how the miniscope attaches to the baseplate. Here, the default case considered
+    is when the coax cable is located on the left side of the animal's head. In this 
+    case rotations around the first axis represent the pitch and rotations around the
+    second axis the roll. This function maps all possible placements to this reference
+    configuration resulting in the following:
+        
+    Looking from the left side of the animal, counter-clockwise rotations yield
+    positive increases pitch angles,
+    Looking from the back of the animal, counter-clockwise rotations yield
+    positive increases in roll angles
+    Looking from the top of the animal, counter-clockwise rotations yield
+    positive increases in yaw angles (from the bottom counter-clockwise rotations will be negative!)
+    
+    Parameters
+    ----------
+    qw, qx, qy, qz: Scalar value sconstituting the quaternion at time t
+                    as obtained from the head orientation tracking file.
+    coax_position: string, letter indicating where the coax is located with
+                   respect to the animal's head ('l' = left, 'r' = right, 'f' = front, 'b' = back),
+                   defalut is 'l'
 
-def align_miniscope_data(caiman_file): 
+    Retunrs
+    -------
+    P, R, Y: Pitch, Roll and Yaw in radians
+    
+    Examples
+    --------
+    P, R, Y = quaternion_to_euler(qw, qx, qy, qz, coax_position = 'b')
+    ---------------------------------------------------------------------
+    '''
+    import math
+    m00 = 1.0 - 2.0*qy*qy - 2.0*qz*qz
+    m01 = 2.0*qx*qy + 2.0*qz*qw
+    m02 = 2.0*qx*qz - 2.0*qy*qw
+    m10 = 2.0*qx*qy - 2.0*qz*qw
+    m11 = 1 - 2.0*qx*qx - 2.0*qz*qz
+    m12 = 2.0*qy*qz + 2.0*qx*qw
+    m20 = 2.0*qx*qz + 2.0*qy*qw
+    m21 = 2.0*qy*qz - 2.0*qx*qw
+    m22 = 1.0 - 2.0*qx*qx - 2.0*qy*qy
+    
+    temp_P = math.atan2(m12, m22)
+    c2 = math.sqrt(m00*m00 + m01*m01)
+    temp_R = math.atan2(-m02, c2)
+    s1 = math.sin(temp_R)
+    c1 = math.cos(temp_R)
+    Y = math.atan2(s1*m20 - c1*m10, c1*m11-s1*m21)
+    
+    if coax_position == 'l':
+        P = temp_R
+        R = temp_P
+    elif coax_position == 'r': #If the coax is on the other side, flip the sign
+        P = -temp_R
+        R = -temp_P
+    elif coax_position == 'b': #If the coax points backwards
+        P = temp_P
+        R = temp_R
+        Y = -Y
+    elif coax_position == 'f': #Coax sits in front
+        P = -temp_P
+        R = -temp_R
+        Y = -Y
+        
+    return P, R, Y        
+
+###############################################################################
+#%%
+
+def align_miniscope_data(caiman_file, coax_position = None): 
     '''Function to align the acquired miniscope data to the behavior and interpolate
     dropped frames in the signal if necessary. Stores the results in '/analysis'
     inside the session directory and outputs the data as a dictionary. When loading
@@ -356,6 +429,11 @@ def align_miniscope_data(caiman_file):
                  timeStams.csv file in the miniscope folder and the chipmunk behavior
                  file in the chipmunk folder!
                  
+    coax_position: str, the positionin of the miniscope coaxial cable on the mouse
+                   head, 'l' = left, 'r' = right, 'b' = back, 'f' = front. This 
+                   is used to retrieve the head orientation data and make sure
+                   the rotational axes are as expected.
+                 
     Returns
     -------
     miniscope_data: dict, all the necessay imaging data, timestamps and alignment
@@ -364,7 +442,7 @@ def align_miniscope_data(caiman_file):
                     
     Examples
     --------
-    miniscope_data = align_miniscope_data(caiman_file)
+    miniscope_data = align_miniscope_data(caiman_file, coax_position = 'l')
                  '''
     
     import numpy as np
@@ -399,7 +477,12 @@ def align_miniscope_data(caiman_file):
     
     
     #Sanity check on the timestamps file
-    include_head_orientation = True
+    if coax_position is not None:
+        include_head_orientation = True
+    else:
+        include_head_orientation = False
+        print('Specifiy the position of the coaxial cable of the miniscope to retrieve head orientation data')
+        
     if  np.where((head_ori[:,1:] == np.array([0,0,0,0])).all(-1))[0].shape[0] > 0:
         #If all of the head orientation entries are zero at a given moment there is a 
         #problem and the file cannot be used
@@ -533,6 +616,16 @@ def align_miniscope_data(caiman_file):
     #------Load the caiman data and interpolate the frames that were dropped    
     A, C_short, S_short, F_short, image_dims, frame_rate, neuron_num, recording_length, movie_file, spatial_spMat = load_caiman(caiman_file)
     
+    #--------Initialize and retrieve the euler angles if requested
+    if include_head_orientation:
+        P_short = np.zeros([C_short.shape[1]]) * np.nan #pitch
+        R_short = np.zeros([C_short.shape[1]]) * np.nan #roll
+        Y_short = np.zeros([C_short.shape[1]]) * np.nan #yaw
+        
+        for k in range(P_short.shape[0]):
+            P_short[k], R_short[k], Y_short[k] = quaternion_to_euler(head_ori[k,1],head_ori[k,2],head_ori[k,3],head_ori[k,4], coax_position = coax_position)
+    
+    #-----Interpolation of the data to correct for dropped frames
     if num_dropped > 0: #The case with dropped frames
         #Generate a vector with the time stamps matching the acquired frames (leaky)
         time_vect = np.arange(acquired_frame_num + num_dropped) #The actual recording length.
@@ -558,13 +651,31 @@ def align_miniscope_data(caiman_file):
            F = linear_interpolation(time_vect) 
         else:
            F = F_short
-           
+            
         if include_head_orientation:
-            if head_ori.shape[0] == leaky_time.shape[0]: 
-                cubic_spline_interpolation = CubicSpline(leaky_time, head_ori[:,1:], axis=0)
-                head_orientation = cubic_spline_interpolation(time_vect)
+            if P_short.shape[0] == leaky_time.shape[0]: 
+                cubic_spline_interpolation = CubicSpline(leaky_time, P_short, axis=0)
+                pitch = cubic_spline_interpolation(time_vect)
+                
+                cubic_spline_interpolation = CubicSpline(leaky_time, R_short, axis=0)
+                roll = cubic_spline_interpolation(time_vect)
+                
+                cubic_spline_interpolation = CubicSpline(leaky_time, Y_short, axis=0)
+                yaw = cubic_spline_interpolation(time_vect)
+                
+                #Ensure that the interpolation doesn't violate the possible range of angles
+                pitch[pitch > np.pi] = np.pi
+                pitch[pitch < -np.pi] = -np.pi
+                
+                roll[roll > np.pi] = np.pi
+                roll[roll < -np.pi] = -np.pi
+                
+                yaw[yaw > np.pi] = np.pi
+                yaw[yaw < -np.pi] = -np.pi    
             else:
-                 head_orientation = None
+                 pitch = None
+                 roll = None
+                 yaw = None
                  print('The head orientation data drop events do not correspond to the miniscope frame drops')
                  print('No head orientation data was saved')
            
@@ -573,7 +684,9 @@ def align_miniscope_data(caiman_file):
         C = C_short
         S = S_short
         F = F_short
-        head_orientation = head_ori[:,1:]
+        pitch = P_short
+        roll = R_short
+        yaw = Y_short
 
     print(f'Interpolated signals for {num_dropped} dropped frames')
     
@@ -591,7 +704,9 @@ def align_miniscope_data(caiman_file):
                           'C': C,
                           'S': S,
                           'F': F,
-                          'head_orientation': head_orientation,
+                          'pitch': pitch,
+                          'roll': roll,
+                          'yaw': yaw,
                           'neuron_num': neuron_num,
                           'frame_rate': frame_rate,
                           'image_dims': image_dims,
@@ -615,77 +730,3 @@ def align_miniscope_data(caiman_file):
         
 #############################################################################
 #%%
-def quaternion_to_euler(qw, qx, qy, qz, coax_position = 'l'):
-    '''Convert the quaternions from the miniscope BNO to euler angles.
-    Here the first axis of rotation is in the direction of the coax - ewl PCBs, 
-    the second one along the MCU pcb axis, and the third one along the miniscope
-    body's hight. Rotation around this last axis are always the yaw. For the two 
-    first axis whether they represent the pitch or roll will be determined by
-    how the miniscope attaches to the baseplate. Here, the default case considered
-    is when the coax cable is located on the left side of the animal's head. In this 
-    case rotations around the first axis represent the pitch and rotations around the
-    second axis the roll. This function maps all possible placements to this reference
-    configuration resulting in the following:
-        
-    Looking from the left side of the animal, counter-clockwise rotations yield
-    positive increases pitch angles,
-    Looking from the back of the animal, counter-clockwise rotations yield
-    positive increases in roll angles
-    Looking from the top of the animal, counter-clockwise rotations yield
-    positive increases in yaw angles (from the bottom counter-clockwise rotations will be negative!)
-    
-    Parameters
-    ----------
-    qw, qx, qy, qz: Scalar value sconstituting the quaternion at time t
-                    as obtained from the head orientation tracking file.
-    coax_position: string, letter indicating where the coax is located with
-                   respect to the animal's head ('l' = left, 'r' = right, 'f' = front, 'b' = back),
-                   defalut is 'l'
-
-    Retunrs
-    -------
-    P, R, Y: Pitch, Roll and Yaw in radians
-    
-    Examples
-    --------
-    P, R, Y = quaternion_to_euler(qw, qx, qy, qz, coax_position = 'b')
-    ---------------------------------------------------------------------
-    '''
-    import math
-    m00 = 1.0 - 2.0*qy*qy - 2.0*qz*qz
-    m01 = 2.0*qx*qy + 2.0*qz*qw
-    m02 = 2.0*qx*qz - 2.0*qy*qw
-    m10 = 2.0*qx*qy - 2.0*qz*qw
-    m11 = 1 - 2.0*qx*qx - 2.0*qz*qz
-    m12 = 2.0*qy*qz + 2.0*qx*qw
-    m20 = 2.0*qx*qz + 2.0*qy*qw
-    m21 = 2.0*qy*qz - 2.0*qx*qw
-    m22 = 1.0 - 2.0*qx*qx - 2.0*qy*qy
-    
-    temp_P = math.atan2(m12, m22)
-    c2 = math.sqrt(m00*m00 + m01*m01)
-    temp_R = math.atan2(-m02, c2)
-    s1 = math.sin(temp_R)
-    c1 = math.cos(temp_R)
-    Y = math.atan2(s1*m20 - c1*m10, c1*m11-s1*m21)
-    
-    if coax_position == 'l':
-        P = temp_R
-        R = temp_P
-    elif coax_position == 'r': #If the coax is on the other side, flip the sign
-        P = -temp_R
-        R = -temp_P
-    elif coax_position == 'b': #If the coax points backwards
-        P = temp_P
-        R = temp_R
-        Y = -Y
-    elif coax_position == 'f': #Coax sits in front
-        P = -temp_P
-        R = -temp_R
-        Y = -Y
-        
-    return P, R, Y        
-        
-        
-        
-        
