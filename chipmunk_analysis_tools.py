@@ -335,7 +335,7 @@ def align_behavioral_video(camlog_file):
     
     video_alignment_data = dict({'camera_name': camera_name, 'trial_starts': trial_start_video_frames, 'frame_interval': video_frame_interval})
     
-    np.save(path.join(path.split(camlog_file)[0],'..', 'analysis', camera_name + '_alignment.npy'), video_alignment_data)
+    np.save(path.join(path.split(camlog_file)[0],'..', 'analysis', camera_name + '_video_alignment.npy'), video_alignment_data)
     
     return video_alignment_data
     
@@ -614,7 +614,77 @@ def align_miniscope_data(caiman_file):
     return miniscope_data
         
 #############################################################################
+#%%
+def quaternion_to_euler(qw, qx, qy, qz, coax_position = 'l'):
+    '''Convert the quaternions from the miniscope BNO to euler angles.
+    Here the first axis of rotation is in the direction of the coax - ewl PCBs, 
+    the second one along the MCU pcb axis, and the third one along the miniscope
+    body's hight. Rotation around this last axis are always the yaw. For the two 
+    first axis whether they represent the pitch or roll will be determined by
+    how the miniscope attaches to the baseplate. Here, the default case considered
+    is when the coax cable is located on the left side of the animal's head. In this 
+    case rotations around the first axis represent the pitch and rotations around the
+    second axis the roll. This function maps all possible placements to this reference
+    configuration resulting in the following:
         
+    Looking from the left side of the animal, counter-clockwise rotations yield
+    positive increases pitch angles,
+    Looking from the back of the animal, counter-clockwise rotations yield
+    positive increases in roll angles
+    Looking from the top of the animal, counter-clockwise rotations yield
+    positive increases in yaw angles (from the bottom counter-clockwise rotations will be negative!)
+    
+    Parameters
+    ----------
+    qw, qx, qy, qz: Scalar value sconstituting the quaternion at time t
+                    as obtained from the head orientation tracking file.
+    coax_position: string, letter indicating where the coax is located with
+                   respect to the animal's head ('l' = left, 'r' = right, 'f' = front, 'b' = back),
+                   defalut is 'l'
+
+    Retunrs
+    -------
+    P, R, Y: Pitch, Roll and Yaw in radians
+    
+    Examples
+    --------
+    P, R, Y = quaternion_to_euler(qw, qx, qy, qz, coax_position = 'b')
+    ---------------------------------------------------------------------
+    '''
+    import math
+    m00 = 1.0 - 2.0*qy*qy - 2.0*qz*qz
+    m01 = 2.0*qx*qy + 2.0*qz*qw
+    m02 = 2.0*qx*qz - 2.0*qy*qw
+    m10 = 2.0*qx*qy - 2.0*qz*qw
+    m11 = 1 - 2.0*qx*qx - 2.0*qz*qz
+    m12 = 2.0*qy*qz + 2.0*qx*qw
+    m20 = 2.0*qx*qz + 2.0*qy*qw
+    m21 = 2.0*qy*qz - 2.0*qx*qw
+    m22 = 1.0 - 2.0*qx*qx - 2.0*qy*qy
+    
+    temp_P = math.atan2(m12, m22)
+    c2 = math.sqrt(m00*m00 + m01*m01)
+    temp_R = math.atan2(-m02, c2)
+    s1 = math.sin(temp_R)
+    c1 = math.cos(temp_R)
+    Y = math.atan2(s1*m20 - c1*m10, c1*m11-s1*m21)
+    
+    if coax_position == 'l':
+        P = temp_R
+        R = temp_P
+    elif coax_position == 'r': #If the coax is on the other side, flip the sign
+        P = -temp_R
+        R = -temp_P
+    elif coax_position == 'b': #If the coax points backwards
+        P = temp_P
+        R = temp_R
+        Y = -Y
+    elif coax_position == 'f': #Coax sits in front
+        P = -temp_P
+        R = -temp_R
+        Y = -Y
+        
+    return P, R, Y        
         
         
         

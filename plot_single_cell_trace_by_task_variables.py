@@ -23,9 +23,12 @@ if __name__ == '__main__':
     #%%--Input check and convenience
     
     if 'miniscope_data' in locals():
-        frame_interval = miniscope_data['frame_interval']
+        frame_rate = miniscope_data['frame_rate']
         trial_starts = miniscope_data['trial_starts']
-    
+        frame_interval = miniscope_data['frame_interval']
+        
+        prior_mode = 'consecutive'
+        
     #%%------Set up the globals for the updating
     
     #Set variables to global that will be updated
@@ -74,15 +77,15 @@ if __name__ == '__main__':
     
     #%%-----Define basic functions to retrieve data and plot traces
         
-    def get_state_start_signal(signal, state_start_frame, frame_interval, window):
+    def get_state_start_signal(signal, state_start_frame, frame_rate, window):
         '''Retrieve calcium siganl for the respective event from the corresponding neuron.
         Note that that the signal as input has the dimension: neurons x frames.'''
     
-        interval_frames = round(window/frame_interval)
+        interval_frames = round(window * frame_rate)
         aligned_signal = np.zeros([interval_frames, len(state_start_frame)])
         for n in range(len(state_start_frame)):
             if np.isnan(state_start_frame[n]) == 0:
-               aligned_signal[:, n] = signal[current_neuron, int(state_start_frame[n] -  np.ceil(interval_frames/2)) : int(state_start_frame[n] + np.ceil(interval_frames/2) +1)]
+               aligned_signal[:, n] = signal[current_neuron, int(state_start_frame[n] -  np.floor(interval_frames/2)) : int(state_start_frame[n] + np.ceil(interval_frames/2))]
             else: 
                aligned_signal[:,n] = np.nan
         x_vect = np.linspace(-window/2, window/2 , aligned_signal.shape[0]) #Use linspace here to be sure that the vector sizes match
@@ -131,8 +134,8 @@ if __name__ == '__main__':
         choice_category = np.array([trialdata['response_side'], trialdata['correct_side']]).T
         curr_indices = []
         
-        p_cho = decoding_utils.determine_prior_variable(trialdata['response_side'], np.ones(trialdata.shape[0]), 1, mode = 'consecutive')
-        p_cat = decoding_utils.determine_prior_variable(trialdata['correct_side'], np.ones(trialdata.shape[0]), 1, mode = 'consecutive')
+        p_cho = decoding_utils.determine_prior_variable(trialdata['response_side'], np.ones(trialdata.shape[0]), 1, mode = prior_mode)
+        p_cat = decoding_utils.determine_prior_variable(trialdata['correct_side'], np.ones(trialdata.shape[0]), 1, mode = prior_mode)
         prior_cho_cat = np.array([p_cho, p_cat]).T
         prior_indices = []
         
@@ -152,7 +155,7 @@ if __name__ == '__main__':
         #Do the plotting
         for m in range(4):
             state_start_frame, _ = decoding_utils.find_state_start_frame_imaging(consider_states[m], trialdata, frame_interval, trial_starts)
-            aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, frame_interval, window)
+            aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, frame_rate, window)
             
             lines_on_plots[m] = plot_signal(data_axes[m], lines_on_plots[m], aligned_signal, x_vect, curr_indices, curr_labels)
             lines_on_plots[m + 4] = plot_signal(data_axes[m + 4], lines_on_plots[m + 4], aligned_signal, x_vect, prior_indices, prior_labels)
@@ -189,7 +192,7 @@ if __name__ == '__main__':
         global current_neuron
         global num_input
         current_neuron = current_neuron + 1
-        figure_updater(fi, data_axes, lines_on_plots, signal, trialdata, frame_interval, window)
+        figure_updater(fi, data_axes, lines_on_plots, signal, trialdata, frame_rate, window)
         num_input.set_val(str(current_neuron))
         fi.suptitle(f"Neuron number {current_neuron}", fontsize=18)
     
@@ -197,7 +200,7 @@ if __name__ == '__main__':
         global current_neuron
         global num_input
         current_neuron = current_neuron - 1
-        figure_updater(fi, data_axes, lines_on_plots, signal, trialdata, frame_interval, window)
+        figure_updater(fi, data_axes, lines_on_plots, signal, trialdata, frame_rate, window)
         num_input.set_val(str(current_neuron))
         fi.suptitle(f"Neuron number {current_neuron}", fontsize=18)
     
@@ -205,7 +208,7 @@ if __name__ == '__main__':
         global current_neuron
         global num_input
         current_neuron = int(num_input.text)
-        figure_updater(fi, data_axes, lines_on_plots, signal, trialdata, frame_interval, window)
+        figure_updater(fi, data_axes, lines_on_plots, signal, trialdata, frame_rate, window)
         num_input.set_val(str(current_neuron))
         fi.suptitle(f"Neuron number {current_neuron}", fontsize=18)
     
@@ -221,5 +224,5 @@ if __name__ == '__main__':
     update_text_button = Button(update_textAx, 'Jump to')
     update_text_button.on_clicked(jump_to)
     
-    figure_updater(fi, data_axes, lines_on_plots, signal, trialdata, frame_interval, window)
+    figure_updater(fi, data_axes, lines_on_plots, signal, trialdata, frame_rate, window)
     

@@ -15,11 +15,11 @@ def standardize_signal(signal, scale_only = False):
     import numpy as np #Don't need to import numpy because the signal is already a numpy array object that can be transposed
     
     if scale_only:
-       st_signal = signal / np.std(signal, axis = 1)
+       st_signal = signal.T / np.std(signal, axis = 1)
     else:
        st_signal = zscore(signal, axis = 1) #This is where the orientation is specified!
+       st_signal = st_signal.transpose() #Now flip the orientation to be able to feed it into the model
     
-    st_signal = st_signal.transpose() #Now flip the orientation to be able to feed it into the model
     return st_signal
 
 
@@ -177,7 +177,13 @@ def match_video_to_imaging(miniscope_frames, miniscope_reference_frame,
                            video_frame_interval):
     '''Function to pick video frames most closely occuring at the time of 
     a series of miniscope frames. This is done based on a know common reference
-    frame (such as the trial start frame).
+    frame (such as the trial start frame). The frames are expected to be ordered 
+    such that the miniscope frame with the lowest index ocurs first in the array
+    and the one with the highest last. The alignment is performed by generating
+    an expected frame occurence based on the common reference frame. This means
+    that when some indices are higher and some are lowere than the reference,
+    the imprecision of the alignment grows symmetrically with distance from
+    the reference on both sides.
     
     Parameters
     ---------
@@ -208,18 +214,31 @@ def match_video_to_imaging(miniscope_frames, miniscope_reference_frame,
     import numpy as np
     
     #Initialize the output
-    matching_frames = np.zeros(miniscope_frames.shape[0]) * np.nan
+    matching_frames = np.zeros(miniscope_frames.shape[0], dtype=int)
     
     #Generate the expected timestamsp for the miniscope data
     miniscope_timestamps = (miniscope_frames - miniscope_reference_frame) * miniscope_frame_interval
     
-    #Find how much time needs to be covered, with 1 s safety margin
-    min_time = -1 * (np.min(miniscope_timestamps) - 1) #Convert to positive value to be able to generate a sequence starting at 0 exactly
+    #Find the minimum and maximum of the provided timestamps
+    min_time = np.min(miniscope_timestamps) - 1
     max_time = np.max(miniscope_timestamps) + 1
     
-    tmp_min = -1 * np.flip(np.arange(video_frame_interval, min_time + video_frame_interval, video_frame_interval)) #Include the zero frame 
-    tmp_max = np.arange(0,max_time + video_frame_interval,video_frame_interval) #Exclude the 0 position here
-    frame_times = np.concatenate((tmp_min, tmp_max)) #Represents the expected time of the frame acquisition
+    #Check whether the timestamps happen both before and after the common reference.
+    #This is important because then the alignment has to either be contructed going
+    #in one direction or extending from the reference into positive and negative direction
+    if np.sign(miniscope_timestamps[0]) == np.sign(miniscope_timestamps[-1]):
+        #In this scenario we can use a single timestamp vector 
+        
+        frame_times = np.arange(min_time, max_time, video_frame_interval)
+    
+    else: #For this case we have to symmetrically move away from the reference in both directions
+        #np.arange can't do that, so we have to use some tricks...
+        
+        min_time = -1 * min_time #Convert to positive value to be able to generate a sequence starting at 0 exactly
+       
+        tmp_min = -1 * np.flip(np.arange(video_frame_interval, min_time + video_frame_interval, video_frame_interval)) 
+        tmp_max = np.arange(0,max_time + video_frame_interval,video_frame_interval) #Include the reference frame as time 0
+        frame_times = np.concatenate((tmp_min, tmp_max)) #Represents the expected time of the frame acquisition
     
     #Go through the timestamps and find the video frame that most closely matches
     #the occurence of the miniscope frame time
@@ -495,7 +514,7 @@ def train_linear_regression(x_data, y_data, k_folds, fit_intercept=True):
     elif k_folds <= 1: #There are no folds
         k_folds = 1 #Make sure the loop can run, although it should break already when creating the data frame...
         #Train the regression model
-        print('Fitting the model on all the data, R squared cannot be interpreted as a metric for the goodness of fit!')
+        #print('Fitting the model on all the data, R squared cannot be interpreted as a metric for the goodness of fit!')
         
     for n in range(k_folds):
         if k_folds > 1:
@@ -570,7 +589,7 @@ def train_ridge_model(x_data, y_data, k_folds, alpha = None, fit_intercept = Tru
 
     #Input check for the regularization strength
     if alpha is None:
-        alpha = [0.001, 0.01, 0.1,  1, 10, 100, 1000]
+        alpha = [0.001, 0.01, 0.1,  1, 10, 100]
 
     #Set up the dataframe to store the training outputs 
     models = pd.DataFrame(columns=['model_r_squared', 'model_coefficients', 'model_intercept',
@@ -586,7 +605,7 @@ def train_ridge_model(x_data, y_data, k_folds, alpha = None, fit_intercept = Tru
         #Train the regression model
         fold_num = 10
         best_regularization = np.zeros(fold_num) #Allocate this to store the best regularization strength per fold
-        print('Fitting the model on all the data but using 10-fold cross validation to determine regularization strength')
+        #print('Fitting the model on all the data but using 10-fold cross validation to determine regularization strength')
         
     
     
@@ -601,7 +620,7 @@ def train_ridge_model(x_data, y_data, k_folds, alpha = None, fit_intercept = Tru
         train_index, test_index = k_fold_generator.__next__() #This is how the generator has to be called if not directly looped over
         X_train, X_test = x_data[train_index], x_data[test_index]
         y_train, y_test = y_data[train_index], y_data[test_index]
-        y_train_shuffled = np.random.permutation(y_train) #Shuffle the labels of the training data for the control
+        y_train_shuffled = y_train[np.random.permutation(y_train.shape[0]),:] #Shuffle the order of the trials in the data
         
         ridge_model = [] #Initialize lists for the model objects
         ridge_shuffle = []
@@ -633,27 +652,27 @@ def train_ridge_model(x_data, y_data, k_folds, alpha = None, fit_intercept = Tru
         elif k_folds == 1:
             best_regularization[n] = alpha[best_model]
         
-        #Now, if fitting will be done on all the data determine the rgularization strength and fit
-        if k_folds == 1:
-            #best_alpha = mode(best_regularization)[0][0] #Get the value that was best in most cases
-            best_alpha = np.mean(best_regularization)
-            y_train_shuffled = np.random.permutation(y_data)
-            full_ridge_model = Ridge(alpha = best_alpha, fit_intercept = fit_intercept).fit(x_data,y_data)
-            full_ridge_shuffle = Ridge(alpha = best_alpha, fit_intercept = fit_intercept).fit(x_data,y_train_shuffled)
-        
-            models['model_r_squared'][0] = full_ridge_model.score(x_data, y_data)
-            models['model_coefficients'][0] = full_ridge_model.coef_ 
-            models['model_intercept'][0] = full_ridge_model.intercept_
-            
-            models['shuffle_r_squared'][0] = full_ridge_shuffle.score(x_data, y_data)
-            models['shuffle_coefficients'][0] = full_ridge_shuffle.coef_
-            models['shuffle_intercept'][0] = full_ridge_shuffle.intercept_
+    #Now, if fitting will be done on all the data determine the rgularization strength and fit
+    if k_folds == 1:
+        #best_alpha = mode(best_regularization)[0][0] #Get the value that was best in most cases
+        best_alpha = np.mean(best_regularization)
+        y_train_shuffled = np.random.permutation(y_data)
+        full_ridge_model = Ridge(alpha = best_alpha, fit_intercept = fit_intercept).fit(x_data,y_data)
+        full_ridge_shuffle = Ridge(alpha = best_alpha, fit_intercept = fit_intercept).fit(x_data,y_train_shuffled)
     
-            models['cv_R_squared'][0] = cv_R_squared #Here this reflects the R squared values during regularization search
-            models['alpha_values'][0] = alpha
-            models['best_alpha'][0] = best_alpha
-            models['fold_number'][0] = 0
-            models['number_of_samples'][0]= x_data.shape[0]
+        models['model_r_squared'][0] = full_ridge_model.score(x_data, y_data)
+        models['model_coefficients'][0] = full_ridge_model.coef_ 
+        models['model_intercept'][0] = full_ridge_model.intercept_
+        
+        models['shuffle_r_squared'][0] = full_ridge_shuffle.score(x_data, y_data)
+        models['shuffle_coefficients'][0] = full_ridge_shuffle.coef_
+        models['shuffle_intercept'][0] = full_ridge_shuffle.intercept_
+
+        models['cv_R_squared'][0] = cv_R_squared #Here this reflects the R squared values during regularization search
+        models['alpha_values'][0] = alpha
+        models['best_alpha'][0] = best_alpha
+        models['fold_number'][0] = 0
+        models['number_of_samples'][0]= x_data.shape[0]
             
     
     return models
@@ -699,8 +718,20 @@ def train_lasso_model(x_data, y_data, k_folds, alpha = None, fit_intercept = Tru
                                     'shuffle_r_squared', 'shuffle_coefficients', 'shuffle_intercept', 'shuffle_dual_gap',
                                      'cv_R_squared','alpha_values', 'best_alpha', 'fold_number','number_of_samples'],
                           index=range(0, k_folds))
-            
-    kf = KFold(n_splits = k_folds, shuffle = True) # Shuffle the observations for cross-validation to make sure 
+     
+    if k_folds > 1: #There are folds
+       fold_num = k_folds #Use fold number to retain 
+       
+    elif k_folds <= 1: #Train the final model on all the data but optimize the regularization strength on 10 folds
+        k_folds = 1 #Make sure the loop can run, although it should break already when creating the data frame...
+        #Train the regression model
+        fold_num = 10
+        best_regularization = np.zeros(fold_num) #Allocate this to store the best regularization strength per fold
+        print('Fitting the model on all the data but using 10-fold cross validation to determine regularization strength')
+        
+    
+        
+    kf = KFold(n_splits = fold_num, shuffle = True) # Shuffle the observations for cross-validation to make sure 
     #that the full range of y values is represented in the model fits.
 
     kf.get_n_splits(x_data, y_data) #Comupte the respective splits, is this actually necessary?
@@ -725,22 +756,47 @@ def train_lasso_model(x_data, y_data, k_folds, alpha = None, fit_intercept = Tru
         
         #Select the best model
         best_model = np.where(np.array(cv_R_squared) == np.max(cv_R_squared))[0][0]
-        
-        models['model_r_squared'][n] = lasso_model[best_model].score(X_test, y_test) #Best model maximizes the explained variance
-        models['model_coefficients'][n] = lasso_model[best_model].coef_ #all arrays
-        models['model_intercept'][n] = lasso_model[best_model].intercept_
-        models['model_dual_gap'][n] = lasso_model[best_model].dual_gap_
-        
-        models['shuffle_r_squared'][n] = lasso_shuffle[best_model].score(X_test, y_test)
-        models['shuffle_coefficients'][n] = lasso_shuffle[best_model].coef_
-        models['shuffle_intercept'][n] = lasso_shuffle[best_model].intercept_
-        models['shuffle_dual_gap'][n] = lasso_shuffle[best_model].dual_gap_
-
-        models['cv_R_squared'][n] = cv_R_squared
-        models['alpha_values'][n] = alpha
-        models['best_alpha'][n] = alpha[best_model]
-        models['fold_number'][n] = n
-        models['number_of_samples'][n]= X_train.shape[0]
+        if k_folds > 1:
+            models['model_r_squared'][n] = lasso_model[best_model].score(X_test, y_test) #Best model maximizes the explained variance
+            models['model_coefficients'][n] = lasso_model[best_model].coef_ #all arrays
+            models['model_intercept'][n] = lasso_model[best_model].intercept_
+            models['model_dual_gap'][n] = lasso_model[best_model].dual_gap_
+            
+            models['shuffle_r_squared'][n] = lasso_shuffle[best_model].score(X_test, y_test)
+            models['shuffle_coefficients'][n] = lasso_shuffle[best_model].coef_
+            models['shuffle_intercept'][n] = lasso_shuffle[best_model].intercept_
+            models['shuffle_dual_gap'][n] = lasso_shuffle[best_model].dual_gap_
     
+            models['cv_R_squared'][n] = cv_R_squared
+            models['alpha_values'][n] = alpha
+            models['best_alpha'][n] = alpha[best_model]
+            models['fold_number'][n] = n
+            models['number_of_samples'][n]= X_train.shape[0]
+        
+        elif k_folds == 1:
+            best_regularization[n] = alpha[best_model]
+        
+    #Now, if fitting will be done on all the data determine the rgularization strength and fit
+    if k_folds == 1:
+            best_alpha = np.mean(best_regularization)
+            y_train_shuffled = np.random.permutation(y_data)
+            full_lasso_model = Lasso(alpha = best_alpha, fit_intercept = fit_intercept).fit(x_data,y_data)
+            full_lasso_shuffle = Lasso(alpha = best_alpha, fit_intercept = fit_intercept).fit(x_data,y_train_shuffled)
+            
+            models['model_r_squared'][n] = full_lasso_model[best_model].score(X_test, y_test) #Best model maximizes the explained variance
+            models['model_coefficients'][n] = full_lasso_model[best_model].coef_ #all arrays
+            models['model_intercept'][n] = full_lasso_model[best_model].intercept_
+            models['model_dual_gap'][n] = full_lasso_model[best_model].dual_gap_
+            
+            models['shuffle_r_squared'][n] = full_lasso_shuffle[best_model].score(X_test, y_test)
+            models['shuffle_coefficients'][n] = full_lasso_shuffle[best_model].coef_
+            models['shuffle_intercept'][n] = full_lasso_shuffle[best_model].intercept_
+            models['shuffle_dual_gap'][n] = full_lasso_shuffle[best_model].dual_gap_
+    
+            models['cv_R_squared'][n] = cv_R_squared
+            models['alpha_values'][n] = alpha
+            models['best_alpha'][n] = best_alpha
+            models['fold_number'][n] = 0
+            models['number_of_samples'][n]= X_train.shape[0]
     return models
 
