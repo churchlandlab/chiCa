@@ -19,6 +19,8 @@ class video_snippets:
                  of frames before and after these time points.
     video_frame_interval: float, the avergae interval between frames in seconds.
     window: int, duration of the snippet (minus one frame) to be extracted, default = 2.
+    time_point_at: str, Start at the given timepoints = 'start' or load symmetrically
+                   around the timepoints = 'center', default is 'center'
     snippets: list, list of movie snippets extracted
     
     Methods
@@ -30,16 +32,17 @@ class video_snippets:
     
     Usage
     -----
-    snippet_collection_single_file = video_snippets('video_file.avi', time_points, video_frame_interval, window = 2)
+    snippet_collection_single_file = video_snippets('video_file.avi', time_points, video_frame_interval, window = 2, time_point_at = 'start')
     snippet_collection_multi_file = video_snippets(['video_one.avi','video_two.avi'], time_points, video_frame_interval, window = 2)
     
     '''
     
-    def __init__(self, video_file, time_points, video_frame_interval, window = 2):
+    def __init__(self, video_file, time_points, video_frame_interval, window = 2, time_point_at = 'center'):
         self.video_file = video_file
         self.time_points = time_points
         self.video_frame_interval = video_frame_interval
         self.window = window
+        self.time_point_at = time_point_at
 
     def load(self):
         '''Load specified movie snippets from the movie file and adds them as the
@@ -67,8 +70,13 @@ class video_snippets:
             #Start loading the snippets
             self.snippets = [] #Pre-allocate the snippet data
             for k in range(len(self.time_points)):
-                start_frame = self.time_points[k] - round(window_frames/2) # Make sure to keep symmetric window also with uneven frame numbers
-                stop_frame = self.time_points[k] + round(window_frames/2)
+                if self.time_point_at == 'center': #Pick half the frames before and half the frames after the provided timepoints
+                    start_frame = self.time_points[k] - round(window_frames/2) # Make sure to keep symmetric window also with uneven frame numbers
+                    stop_frame = self.time_points[k] + round(window_frames/2)
+                elif self.time_point_at == 'start':
+                    start_frame = self.time_points[k] # Start right at the timepoint
+                    stop_frame = self.time_points[k] + window_frames + 1
+                    
                 if start_frame < 0 or stop_frame > frame_number:
                     self.snippets.append(None)
                     print(f'Time point number {k} cannot be retrieved because it is out of the video bounds with the current window size, inserted None.')
@@ -164,10 +172,30 @@ class video_snippets:
       window_title = "Snippet"
       cv2.namedWindow(window_title, cv2.WINDOW_AUTOSIZE) #Generate window 
 
+      #Find the desired coordinates to put the frame number display (top right corner)
+      #and assign other text parameters
+      x_coord = 0.9 * self.snippets[0].shape[1]
+      y_coord = 0.1 * self.snippets[0].shape[0]
+      org = (int(x_coord), int(y_coord))
+      font = cv2.FONT_HERSHEY_PLAIN
+      font_scale = 1
+      t_color = (0,126,205) #This is BGR, stupid!
+      
+      #Determine subtraction of frame number if necessary
+      window_frames = int(round(self.window/self.video_frame_interval))
+      
       for k in snippet_indices:
         cv2.setWindowTitle(window_title, f'Snippet {k}') #Change the name of the window
         for n in range(self.snippets[k].shape[2]):
-            cv2.imshow(window_title, self.snippets[k][:,:,n]) #Note that the window always retains its original name for plotting but that this name can be changed for display
+            if self.time_point_at == 'center':
+                disp_time = n - round(window_frames/2)
+            elif self.time_point_at == 'start':
+                disp_time = n
+            
+            temp = np.stack((self.snippets[k][:,:,n],self.snippets[k][:,:,n],self.snippets[k][:,:,n]),axis=2)
+            image = cv2.putText(temp, f'{disp_time}', org, font, font_scale, t_color, 2)
+          #  cv2.imshow(window_title, self.snippets[k][:,:,n]) #Note that the window always retains its original name for plotting but that this name can be changed for display
+            cv2.imshow(window_title, image) #Note that the window always retains its original name for plotting but that this name can be changed for display
             cv2.waitKey(round(self.video_frame_interval*1000)) #Requires an ineger amount of ms
     
         time.sleep(separation) #Here the break is in seconds
