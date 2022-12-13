@@ -45,8 +45,8 @@ if __name__ == '__main__':
     gs_ui = GridSpec(nrows=1, ncols=4, top=0.1, bottom=0.05, left=0.75, right=0.95)
       
     data_axes = []
-    for n in range(gs_data.nrows): #Iteratively fill the grid with the desired subplots
-        for k in range(gs_data.ncols):
+    for n in range(gs_data._nrows): #Iteratively fill the grid with the desired subplots
+        for k in range(gs_data._ncols):
             data_axes.append(fi.add_subplot(gs_data[n,k]))  
     
     #Add x-label on bottom panels, y-labels on left panels 
