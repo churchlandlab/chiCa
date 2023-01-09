@@ -25,20 +25,20 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     
     #use_name = 'prior_choice_by_prior_stim_category_stim_period'
     use_name = None
-    session_dir = 'C:/data/LO037/20221005_162433'
-    #session_dir = 'C:/data/LO032/20220923_135753'
+    #session_dir = 'C:/data/LO037/20221005_162433'
+    session_dir = 'C:/data/LO032/20220923_135753'
     #session_dir =  'C:/Users/Lukas Oesch/Documents/ChurchlandLab/TestDataChipmunk/TestMiniscopeAlignment/LO028/20220209_153012' #Can also be None
     #session_dir = None
-    signal_type = 'c' #The type of traces to be used for decoding c = denoised, s = inferred spikes, f = detrended raw fluorescence
-    aligned_state = 'DemonWaitForResponse' #State to align to 
-    decoder_range = [-12, 25] #The range of frames from the alignment time point that should be included,
+    signal_type = 'f' #The type of traces to be used for decoding c = denoised, s = inferred spikes, f = detrended raw fluorescence
+    aligned_state = 'DemonInitFixation' #State to align to 
+    decoder_range = [-10, 5] #The range of frames from the alignment time point that should be included,
     #python style lower inclusive, upper exclusive, thus one frame would be [0,1]
     window_size = 1 #The size of the sliding window
     #CAUTION: Only odd-numbered windows symmetrically distribute the activity data. Even-numbered windows
     #weight the prior frames a little more strongly
-    label_name = 'outcome' #The column name of the label in the trialdata dataframe
-    label_trials_back = 1 #How many consecutive trials back the label should be looked at
-    secondary_label_name = 'correct_side' #The column name of the secondary label in the trialdata dataframe
+    label_name = 'correct_side' #The column name of the label in the trialdata dataframe
+    label_trials_back = 0 #How many consecutive trials back the label should be looked at
+    secondary_label_name = 'response_side' #The column name of the secondary label in the trialdata dataframe
     secondary_label_trials_back = 1 #How many trials back the secondary lablel should be considered
     k_folds = 10 #Folds for cross-validation
     subsampling_rounds = 100 #Re-drawing of samples from majority class
@@ -51,7 +51,7 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
         session_dir = filedialog.askdirectory()
     
     try:
-        trial_alignment_file = glob.glob(session_dir + '/analysis/*.npy')[0]
+        trial_alignment_file = glob.glob(session_dir + '/analysis/*miniscope_data.npy')[0]
         miniscope_data = np.load(trial_alignment_file, allow_pickle = True).tolist()
         
         trial_starts = miniscope_data['trial_starts']
