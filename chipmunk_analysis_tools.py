@@ -390,25 +390,25 @@ def quaternion_to_euler(qw, qx, qy, qz, coax_position = 'l'):
     
     temp_P = math.atan2(m12, m22)
     c2 = math.sqrt(m00*m00 + m01*m01)
-    temp_R = math.atan2(-m02, c2)
-    s1 = math.sin(temp_R)
-    c1 = math.cos(temp_R)
-    Y = math.atan2(s1*m20 - c1*m10, c1*m11-s1*m21)
+    temp_Y = math.atan2(-m02, c2)
+    s1 = math.sin(temp_P)
+    c1 = math.cos(temp_P)
+    temp_R = math.atan2(s1*m20 - c1*m10, c1*m11-s1*m21)
     
     if coax_position == 'l':
-        P = temp_R
-        R = temp_P
-    elif coax_position == 'r': #If the coax is on the other side, flip the sign
-        P = -temp_R
-        R = -temp_P
-    elif coax_position == 'b': #If the coax points backwards
-        P = temp_P
+        Y = temp_Y
         R = temp_R
-        Y = -Y
-    elif coax_position == 'f': #Coax sits in front
-        P = -temp_P
+        P = temp_P
+    elif coax_position == 'r': #If the coax is on the other side, flip the sign
+        Y = -temp_Y
         R = -temp_R
-        Y = -Y
+        P = temp_P
+    elif coax_position == 'b': #If the coax points backwards
+        P = -temp_Y
+        R = temp_P
+        Y = temp_R
+    elif coax_position == 'f': #Coax sits in front
+       print('Not yet implemented')
         
     return P, R, Y        
 

@@ -174,8 +174,9 @@ class video_snippets:
 
       #Find the desired coordinates to put the frame number display (top right corner)
       #and assign other text parameters
-      x_coord = 0.9 * self.snippets[0].shape[1]
-      y_coord = 0.1 * self.snippets[0].shape[0]
+      x_coord = 0.9 * self.snippets[-1].shape[1]
+      y_coord = 0.1 * self.snippets[-1].shape[0]
+          
       org = (int(x_coord), int(y_coord))
       font = cv2.FONT_HERSHEY_PLAIN
       font_scale = 1
