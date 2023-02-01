@@ -7,13 +7,14 @@ Created on Thu Jun  2 15:24:46 2022
 
 #%%
 
-def convert_specified_behavior_sessions(file_names):
+def convert_specified_behavior_sessions(file_names, overwrite = False):
     '''Convert a list of specified behavior files from .mat or .obsmat to
     pandas data frames. The data frame is saved in the /Data dataset.
     
     Parameters
     ----------
     file_names: list, a list containing the paths of the files to convert
+    overwrite: boolean, specifiy if you want to ovrwrite an exisiting version of the current file
     
     Returns
     -------
@@ -35,10 +36,12 @@ def convert_specified_behavior_sessions(file_names):
 
     #-----Set up the loop
     for current_file in file_names:
-        if os.path.isfile(os.path.splitext(current_file)[0] + '.h5'):
-            print(f'File: {os.path.split(current_file)[1]} was skipped because a corresponding h5 file exists already.')
-            print('---------------------------------------------------------------------------------------------------')
-            converted_files.append(os.path.splitext(current_file)[0] + '.h5')
+        if not overwrite:
+            if os.path.isfile(os.path.splitext(current_file)[0] + '.h5'):
+                print(f'File: {os.path.split(current_file)[1]} was skipped because a corresponding h5 file exists already.')
+                print('---------------------------------------------------------------------------------------------------')
+                converted_files.append(os.path.splitext(current_file)[0] + '.h5')
+                continue #Move on to the next iteration if the file exists already and if it should not be overwritten
         else:
             try:
                 
@@ -144,6 +147,9 @@ def convert_specified_behavior_sessions(file_names):
                     else:
                         outcome_timing.append(np.array([np.nan]))
                 trialdata.insert(trialdata.shape[1], 'outcome_presentation', outcome_timing)
+                
+                # Retrieve the flag for revised choices
+                trialdata.insert(trialdata.shape[1], 'revise_choice_flag', np.ones(trialdata.shape[0], dtype = bool) * sesdata['ReviseChoiceFlag'].tolist())
                 
                 if 'ObsOutcomeRecord' in sesdata.dtype.fields:
                     trialdata.insert(1, 'observer_outcome_record', sesdata['ObsOutcomeRecord'].tolist())

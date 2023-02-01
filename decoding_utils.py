@@ -181,7 +181,7 @@ def match_video_to_imaging(miniscope_frames, miniscope_reference_frame,
     such that the miniscope frame with the lowest index ocurs first in the array
     and the one with the highest last. The alignment is performed by generating
     an expected frame occurence based on the common reference frame. This means
-    that when some indices are higher and some are lowere than the reference,
+    that when some indices are higher and some are lower than the reference,
     the imprecision of the alignment grows symmetrically with distance from
     the reference on both sides.
     
@@ -224,7 +224,7 @@ def match_video_to_imaging(miniscope_frames, miniscope_reference_frame,
     max_time = np.max(miniscope_timestamps) + 1
     
     #Check whether the timestamps happen both before and after the common reference.
-    #This is important because then the alignment has to either be contructed going
+    #This is important because then the alignment has to either be constructed going
     #in one direction or extending from the reference into positive and negative direction
     if np.sign(miniscope_timestamps[0]) == np.sign(miniscope_timestamps[-1]):
         #In this scenario we can use a single timestamp vector 
