@@ -184,7 +184,7 @@ class fit_learning_curve:
 def choice_strategy(response_side, correct_side, stim_rates,
                     contingency_multiplier = 1, category_boundary = 12, window = None,
                     k_folds = 5, subsampling_rounds = 100, model_params = None):
-    '''xxx'''
+    '''Fit a logistic regression model to predict the animal's behavior'''
     
     
     
@@ -199,7 +199,7 @@ def choice_strategy(response_side, correct_side, stim_rates,
         penalty='none' #Do not regularize the model, allow all the features to shine!
         inverse_regularization_strength = 1 
         solver='newton-cg'
-        fit_intercept = True
+        fit_intercept = False
         model_params = {'penalty': penalty, 'inverse_regularization_strength': inverse_regularization_strength, 'solver': solver, 'fit_intercept': fit_intercept}
    
     secondary_labels = None #No balancing for another class required here 
