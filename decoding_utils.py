@@ -22,6 +22,51 @@ def standardize_signal(signal, scale_only = False):
     
     return st_signal
 
+#%%----------Center head direction angle----------
+def center_angles(angles, jump_at_pi = True):
+    '''Function to center a set of angles around their circular mean. Caution:
+    Depending on the type of angle definition this might not necessarily lead to
+    and arithmetic mean of 0!
+    
+    Parameters
+    ----------
+    angles: numpy array, where columns are the types of angles and rows are 
+            the samples.
+    jump_at_pi: bool, the value at which the phase resets. The default value 
+                is True.
+            
+    Returns
+    -------
+    centered_angles, numpy array, zero-mean angles.
+    
+    Examples
+    --------
+    centered_angles = center_angles(angles, jump_at_pi = True)
+    '''
+
+    from scipy.stats import circmean
+    import numpy as np
+    
+    
+    #Input check, make 2d array if required 
+    if len(angles.shape) == 1:
+            angles = angles.reshape(-1,1)
+    
+    #Define the values at which the angles reset
+    if jump_at_pi == True: #Angles range from -pi to +pi
+        high_end = np.pi
+        low_end = -np.pi
+    else:
+        high_end = np.pi * 2
+        low_end = 0
+    
+    mean_angle = circmean(angles, high = high_end, low = low_end, axis=0) 
+    centered_angles = angles - mean_angle #Subtract the mean angle from all the individual angles
+   
+    #Add 2pi to every angle that is smaller than the lower bound to keep the circular representation
+    centered_angles[centered_angles < low_end] = centered_angles[centered_angles < low_end] + 2*np.pi
+    
+    return centered_angles
 
 #%%-------------Retrieve the time stamps for the occurence of the task state of interest
 def find_state_start_frame_imaging(state_name, trialdata, average_interval, trial_starts, trial_start_time_covered = None):
