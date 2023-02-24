@@ -341,7 +341,8 @@ def align_behavioral_video(camlog_file):
     
     video_alignment_data = dict({'camera_name': camera_name, 'trial_starts': trial_start_video_frames, 'frame_interval': video_frame_interval})
     
-    np.save(path.join(path.split(camlog_file)[0],'..', 'analysis', camera_name + '_video_alignment.npy'), video_alignment_data)
+    output_name = path.splitext(path.split(camlog_file)[1])[0]
+    np.save(path.join(path.split(camlog_file)[0],'..', 'analysis', output_name + '_video_alignment.npy'), video_alignment_data)
     
     return video_alignment_data
     
