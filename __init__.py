@@ -1,2 +1,2 @@
-my_variable = "Hello, world!"
+my_variable = "Package succesfully imported!"
 print(my_variable)
