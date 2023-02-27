@@ -302,7 +302,7 @@ def align_behavioral_video(camlog_file):
     import numpy as np
     from labcams import parse_cam_log, unpackbits #Retrieve the correct channel and spot trial starts in frames
     from scipy.io import loadmat #Load behavioral data for ground truth on trial number
-    from os import path
+    from os import path, makedirs
     from glob import glob
     
     #First load the associated chipmunk file and get the number of trials to find the correct channel on the camera
@@ -339,11 +339,21 @@ def align_behavioral_video(camlog_file):
     if not 'trial_start_video_frames' in locals():
         raise ValueError('In none of the camera channels the onset number matched the trial number. Please check the log files and camera setup.')
     
+    #Check if the proper directory exists to store the data
+    directory = path.join(path.split(camlog_file)[0],'..', 'analysis')
+    
+    if not path.exists(directory):
+        makedirs(directory)
+        print(f"Directory {directory} created")
+    else:
+        print(f"Directory {directory} already exists")
+    
     video_alignment_data = dict({'camera_name': camera_name, 'trial_starts': trial_start_video_frames, 'frame_interval': video_frame_interval})
     
     output_name = path.splitext(path.split(camlog_file)[1])[0]
     np.save(path.join(path.split(camlog_file)[0],'..', 'analysis', output_name + '_video_alignment.npy'), video_alignment_data)
-    
+    print(f'Video alignment file created for {camlog_file}!')  
+
     return video_alignment_data
     
 ###############################################################################
