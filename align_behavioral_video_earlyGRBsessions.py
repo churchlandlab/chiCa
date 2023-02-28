@@ -93,7 +93,8 @@ def align_behavioral_video_earlyGRBsessions(camlog_file):
         print(f"Directory {directory} already exists")
 
     #Save data
-    np.save(path.join(path.split(camlog_file)[0],'..', 'analysis', camera_name + '_video_alignment.npy'), video_alignment_data)
+    output_name = path.splitext(path.split(camlog_file)[1])[0]
+    np.save(path.join(path.split(camlog_file)[0],'..', 'analysis', output_name + '_video_alignment.npy'), video_alignment_data)
     print(f'Video alignment file created for {camlog_file}!')  
     
     return video_alignment_data
