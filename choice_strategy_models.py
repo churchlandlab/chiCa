@@ -565,7 +565,6 @@ def post_outcome_side_switch(trialdata):
                     
         elif (poke_other_side[k][0] == 0) or (poke_other_side_next[k+1][0] == 0): 
                 side_switch[k] = 0
-                poke_on_next = 0
                 if response_side[k-1] == 0:
                     heading_direction[k] = 0
                 elif response_side[k-1] == 1:
