@@ -428,17 +428,22 @@ def post_outcome_side_switch(trialdata):
     Returns
     -------
     side_switch: numpy array indicating whether an animal switched to the other
-                 side in the previous trial, 0 = No, 1 = yes, nan = No outcome 
-                 in previous trial
+                 side between the current and the upcoming trial, 0 = No, 1 = yes, nan = No outcome 
+                 during the current trial
     heading_direction: numpy array encoding the putative side the animal approaches
-                       the center poke from based on the behavioral data and 
+                       the center poke from on the next trial based on the behavioral data and 
                        the detected switching. 0 = heading rightward (coming 
                        from the left), 1 = heading leftward (coming from the 
                        right), nan = incomplete prior trial.
+    poke_on_next: numpy array, flag indicating whether the additional poke happens
+                  during the current trial or during the next one (this is important for
+                  the timing of the poke event!)
+    poke_timing: numpy array, time in seconds at which the switching poke happend.
+                 The corresponding trial is: side_switch[k] + poke_on_next[k]                                           
                                                             
     Examples
     --------
-    side_switch, heading_direction = post_outcome_side_switch(trialdata)
+    side_switch, heading_direction, poke_on_next, poke_timing = post_outcome_side_switch(trialdata)
     '''
     import numpy as np
     import pandas as pd
@@ -491,20 +496,20 @@ def post_outcome_side_switch(trialdata):
             
     #Find the times when the mouse poke in the port of the opposite side after
     #after outcome presentation but still during the current trial
-    poke_other_side = [np.array([np.nan])]
-    for k in range(outcome.shape[0]-1):
-        if (np.isnan(outcome[k]) == 0):
-            if response_side[k] == 0:
+    poke_other_side = []
+    for k in range(response_side.shape[0]):
+        if (np.isnan(response_side[k]) == 0):
+            if response_side[k] == 0: #When the left has been chosen
                 if np.isnan(right_port_in[k][0]):
                     poke_other_side.append(np.array([0]))
                 else:
-                    tmp = np.where(right_port_in[k] > trialdata['DemonInitFixation'][k][0])[0].astype(int)
+                    tmp = np.where(right_port_in[k] > trialdata['DemonWaitForResponse'][k][1])[0].astype(int) #The most general case here looking after the reponse
                     poke_other_side.append(right_port_in[k][tmp])
             elif response_side[k] == 1:
                 if np.isnan(left_port_in[k][0]):
                     poke_other_side.append(np.array([0]))
                 else:
-                    tmp = np.where(left_port_in[k] > trialdata['DemonInitFixation'][k][0])[0].astype(int)
+                    tmp = np.where(left_port_in[k] > trialdata['DemonWaitForResponse'][k][0])[0].astype(int)
                     poke_other_side.append(left_port_in[k][tmp])
         else:
            poke_other_side.append(np.array([np.nan])) 
@@ -516,19 +521,19 @@ def post_outcome_side_switch(trialdata):
     #be initiated. Check on the next trial's timestamps for side pokes before center poke
     #CAUTION: Here the relevant event is PortXout!               
     poke_other_side_next = [np.array([np.nan])]
-    for k in range(outcome.shape[0]-1):
-        if (np.isnan(outcome[k]) == 0):
+    for k in range(response_side.shape[0]-1):
+        if (np.isnan(response_side[k]) == 0): #Check for trials with a response
             if response_side[k] == 0:
                 if np.isnan(right_port_out[k+1][0]):
                     poke_other_side_next.append(np.array([0]))
                 else:
-                    tmp = np.where(right_port_out[k+1] < trialdata['DemonInitFixation'][k][0])[0].astype(int)
+                    tmp = np.where(right_port_out[k+1] < trialdata['DemonInitFixation'][k+1][0])[0].astype(int)
                     poke_other_side_next.append(right_port_out[k+1][tmp])
             elif response_side[k] == 1:
                 if np.isnan(left_port_out[k+1][0]):
                     poke_other_side_next.append(np.array([0]))
                 else:
-                    tmp = np.where(left_port_out[k+1] < trialdata['DemonInitFixation'][k][0])[0].astype(int)
+                    tmp = np.where(left_port_out[k+1] < trialdata['DemonInitFixation'][k+1][0])[0].astype(int)
                     poke_other_side_next.append(left_port_out[k+1][tmp])
         else:
            poke_other_side_next.append(np.array([np.nan])) 
@@ -539,20 +544,33 @@ def post_outcome_side_switch(trialdata):
     #us to compare effects of behavior to putative categroy encoding
     side_switch = np.zeros([outcome.shape[0]]) * np.nan
     heading_direction = np.zeros([outcome.shape[0]]) * np.nan
-    for k in range(1,len(poke_other_side)):
-        if (poke_other_side[k][0] > 0) or (poke_other_side_next[k][0] > 0):
-                side_switch[k] = 1
-                if response_side[k-1] == 0:
+    poke_on_next = np.zeros([outcome.shape[0]]) * np.nan
+    for k in range(len(poke_other_side)-1):
+        if poke_other_side[k][0] > 0:
+            side_switch[k] = 1  #Detect the side switching 
+            poke_on_next[k] = 0 #The poking in the other port has been detected on the same trial
+            poke_timing = poke_other_side[0] #The time stamp for the poke
+            if response_side[k] == 0:
                     heading_direction[k] = 1
-                elif response_side[k-1] == 1:
+            elif response_side[k] == 1:
                     heading_direction[k] = 0
-        elif (poke_other_side[k][0] == 0) or (poke_other_side_next[k][0] == 0):
+        elif poke_other_side_next[k+1][0] > 0:
+            side_switch[k] = 1 #Detect the side switching 
+            poke_on_next[k] = 1 #The poking in the other port has been detected on the following trial
+            poke_timing = poke_other_side_next[k+1][0] #The time stamp for the poke on the following trial
+            if response_side[k] == 0:
+                    heading_direction[k] = 1
+            elif response_side[k] == 1:
+                    heading_direction[k] = 0
+                    
+        elif (poke_other_side[k][0] == 0) or (poke_other_side_next[k+1][0] == 0): 
                 side_switch[k] = 0
+                poke_on_next = 0
                 if response_side[k-1] == 0:
                     heading_direction[k] = 0
                 elif response_side[k-1] == 1:
                     heading_direction[k] = 1
                     
-    return side_switch, heading_direction
+    return side_switch, heading_direction, poke_on_next, poke_timing
     
 
