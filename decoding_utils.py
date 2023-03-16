@@ -146,6 +146,67 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
           
     return state_start_frame, state_time_covered
 
+#%%---------More general way of aligning imaging data to event or state timestamps
+def align_miniscope_to_event(event_timestamps, trial_end_time, frame_interval, trial_start_frames, trial_start_time_covered = None):
+    '''Locate the frame during which a certain event or state in the chipmunk task has
+    started. The function also returns the time after state onset that was 
+    covered by the frame acquisition. This may be helpful when interpreting 
+    onset responses and their variability.
+    
+    Parameters
+    ----------
+    event_timestamps: list or array, the the time stamp of a certain event relative
+                      to the time in the trial. Aligns one event per trial!
+    trial_end_time: list or array, the time stamp at the end of the trial (end of last state)
+    frame_interval: float, the mean interval in seconds between imaging frames, used
+                      to calculate the aligned frame indices from the trial start 
+                      frame index and the state occurence timers.
+    trial_start_frames: numpy array, The frame indices for the trial starts
+    trial_start_time_covered: numpy array, vector of time within the trial that 
+                              was captured within the imaging trial start frame. Default = None
+    
+    Retunrs
+    -------
+    event_start_frame: list, the frame index when the respective state started
+                       in every trial.
+    event_time_covered: numpy array, the time after state onset that is covered
+                        by the imaging frame. This only contains values if trial_start_time_covered
+                        was provided.
+                        
+    Examples
+    --------
+    event_start_frame, state_time_covered = align_miniscope_to_event(event_timestamps, trial_end_time, frame_interval, trial_start_frames, trial_start_time_covered)
+    '''
+    import numpy as np
+    
+    #Input check, this is less important
+    if type(event_timestamps) == list:
+      event_timestamps = np.array(event_timestamps)
+                           
+    event_start_frame = np.zeros([event_timestamps.shape[0]]) * np.nan #Create an array that covers the start of the events
+    
+    if trial_start_time_covered is not None: #This should be the case for the calcium imaging data
+       event_time_covered = np.zeros([event_timestamps.shape[0]]) * np.nan #The amount of frame time for which the event was present
+       for n in range(event_timestamps.shape[0]):
+            if np.isnan(event_timestamps[n]) == 0: #The the event has occurred or the state has been visited
+                frame_time = np.arange(trial_start_time_covered[n], trial_end_time[n] + frame_interval, frame_interval) #Add one more frame as safety margin   
+                tmp = frame_time - event_timestamps[n] #Calculate the time difference
+                event_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_start_frames[n])
+                #Inside the array of indices retrieve the first one that is positive, therefore the first
+                #frame that caputres some information.
+                event_time_covered[n] =  tmp[tmp > 0][0] #Retrieve the time that was covered by the frame
+              
+    else: #This is the case when the coverage of the trial start by frames is unknown
+        event_time_covered = None #The of the side that has been covered by the frame
+        for n in range(event_timestamps.shape[0]):
+            if np.isnan(event_timestamps[n]) == 0: #The the event has occurred or the state has been visited
+                frame_time = np.arange(trial_start_time_covered[n], trial_end_time[n] + frame_interval, frame_interval) #Add one more frame as safety margin   
+                tmp = frame_time - event_timestamps[n] #Calculate the time difference
+                event_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_start_frames[n])
+             
+    return event_start_frame, event_time_covered
+
+
 
 #%%------------Track task variable in past trials
 def determine_prior_variable(tracked_variable, include_trials, trials_back = 1, mode = 'consecutive'):
