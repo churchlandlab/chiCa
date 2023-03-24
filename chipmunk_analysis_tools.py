@@ -480,11 +480,15 @@ def align_miniscope_data(caiman_file, coax_position = None):
     mscopelog_file = glob.glob(session_directory + '/miniscope/*.mscopelog')[0] #Only one such file in the directory
     mscope_tStamps_file = session_directory + '/miniscope/timeStamps.csv'
     mscope_head_ori_file = session_directory + '/miniscope/headOrientation.csv'
+
     chipmunk_file = glob.glob(session_directory + '/chipmunk/*.mat')
     if len(chipmunk_file) == 0: #This is the case when it is an obsmat file, for instance
         chipmunk_file = glob.glob(session_directory + '/chipmunk/*.obsmat')
-        if  len(chipmunk_file) == 0: #Not copied
-            print("It looks like the chipmunk behavior file has not yet been copied to this folder")
+    if  len(chipmunk_file) == 0: #Maybe it is actually spotlight...
+        chipmunk_file = glob.glob(session_directory + '/spotlight/*.mat')
+        print('No chipmunk folder found, looking for spotlight instead...')
+    if  len(chipmunk_file) == 0: #Not copied
+        print("It looks like the behavior file has not yet been copied to this folder")
             
     
     #---------All the loading----------------------------------------------
