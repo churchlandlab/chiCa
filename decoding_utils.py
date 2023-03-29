@@ -149,14 +149,20 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
 #%%---------More general way of aligning imaging data to event or state timestamps
 def align_miniscope_to_event(event_timestamps, trial_end_time, frame_interval, trial_start_frames, trial_start_time_covered = None):
     '''Locate the frame during which a certain event or state in the chipmunk task has
-    started. The function also returns the time after state onset that was 
+    started. The function also returns the index of the trial, during which
+    the event(s) occured and the time after state / event onset that was 
     covered by the frame acquisition. This may be helpful when interpreting 
     onset responses and their variability.
     
     Parameters
     ----------
     event_timestamps: list or array, the the time stamp of a certain event relative
-                      to the time in the trial. Aligns one event per trial!
+                      to the time in the trial. When a list is passed each element
+                      of the list represents a trial and the elements of the array 
+                      inside each list element are the events captured during the
+                      trial. If an array is passed each entry is interpreted as a
+                      single event per trial and the shape of the array should be
+                      n x 0, where n is the number of trials.
     trial_end_time: list or array, the time stamp at the end of the trial (end of last state)
     frame_interval: float, the mean interval in seconds between imaging frames, used
                       to calculate the aligned frame indices from the trial start 
@@ -167,21 +173,32 @@ def align_miniscope_to_event(event_timestamps, trial_end_time, frame_interval, t
     
     Retunrs
     -------
-    event_start_frame: list, the frame index when the respective state started
-                       in every trial.
+    event_start_frame: array, the frame index when the respective state started
+                       in every trial. Note: The array can contain nan and is 
+                       therefore a float. This may require changing to int when 
+                       indexing into other data!
     event_time_covered: numpy array, the time after state onset that is covered
                         by the imaging frame. This only contains values if trial_start_time_covered
                         was provided.
                         
     Examples
     --------
-    event_start_frame, state_time_covered = align_miniscope_to_event(event_timestamps, trial_end_time, frame_interval, trial_start_frames, trial_start_time_covered)
+    event_start_frame, trial_id, state_time_covered = align_miniscope_to_event(event_timestamps, trial_end_time, frame_interval, trial_start_frames, trial_start_time_covered)
     '''
     import numpy as np
     
     #Input check, this is less important
-    if type(event_timestamps) == list:
-      event_timestamps = np.array(event_timestamps)
+    if type(event_timestamps) == list: #In this case fuse all the timestamps stored in individual arrays togehter
+        for k in range(len(event_timestamps)):
+            if k==0:
+                tmp = event_timestamps[k]
+                trial_id = np.ones([event_timestamps[k].shape[0]]) *k
+            else:
+                tmp = np.hstack((tmp, event_timestamps[k]))
+                trial_id = np.hstack((trial_id, np.ones([event_timestamps[k].shape[0]]) *k)).astype(int)
+        event_timestamps = tmp
+    else: #If an array is provided assume that there is one entry per trial
+         trial_id = np.arange(event_timestamps.shape[0]) 
                            
     event_start_frame = np.zeros([event_timestamps.shape[0]]) * np.nan #Create an array that covers the start of the events
     
@@ -189,9 +206,9 @@ def align_miniscope_to_event(event_timestamps, trial_end_time, frame_interval, t
        event_time_covered = np.zeros([event_timestamps.shape[0]]) * np.nan #The amount of frame time for which the event was present
        for n in range(event_timestamps.shape[0]):
             if np.isnan(event_timestamps[n]) == 0: #The the event has occurred or the state has been visited
-                frame_time = np.arange(trial_start_time_covered[n], trial_end_time[n] + frame_interval, frame_interval) #Add one more frame as safety margin   
+                frame_time = np.arange(trial_start_time_covered[trial_id[n]], trial_end_time[trial_id[n]] + frame_interval, frame_interval) #Add one more frame as safety margin   
                 tmp = frame_time - event_timestamps[n] #Calculate the time difference
-                event_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_start_frames[n])
+                event_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_start_frames[trial_id[n]])
                 #Inside the array of indices retrieve the first one that is positive, therefore the first
                 #frame that caputres some information.
                 event_time_covered[n] =  tmp[tmp > 0][0] #Retrieve the time that was covered by the frame
@@ -200,11 +217,11 @@ def align_miniscope_to_event(event_timestamps, trial_end_time, frame_interval, t
         event_time_covered = None #The of the side that has been covered by the frame
         for n in range(event_timestamps.shape[0]):
             if np.isnan(event_timestamps[n]) == 0: #The the event has occurred or the state has been visited
-                frame_time = np.arange(trial_start_time_covered[n], trial_end_time[n] + frame_interval, frame_interval) #Add one more frame as safety margin   
+                frame_time = np.arange(trial_start_time_covered[trial_id[n]], trial_end_time[trial_id[n]] + frame_interval, frame_interval) #Add one more frame as safety margin   
                 tmp = frame_time - event_timestamps[n] #Calculate the time difference
-                event_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_start_frames[n])
+                event_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_start_frames[trial_id[n]])
              
-    return event_start_frame, event_time_covered
+    return event_start_frame, trial_id, event_time_covered
 
 
 
