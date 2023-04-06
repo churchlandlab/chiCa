@@ -68,7 +68,7 @@ def motion_energy_video(movie_file):
     frame_dims = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
     
     
-    output_file = os.path.join(os.path.split(movie_file)[0], os.path.splitext(os.path.split(movie_file)[1])[0] + '_motion_energy.avi')
+    output_file = os.path.join(os.path.split(os.path.split(movie_file)[0])[0], 'analysis', os.path.splitext(os.path.split(movie_file)[1])[0] + '_motion_energy.avi')
     wrt = cv2.VideoWriter(output_file, cv2.VideoWriter_fourcc(*"mp4v"), frame_rate, frame_dims)
     previous_frame = np.array([])
     
