@@ -217,7 +217,7 @@ def align_miniscope_to_event(event_timestamps, trial_end_time, frame_interval, t
         event_time_covered = None #The of the side that has been covered by the frame
         for n in range(event_timestamps.shape[0]):
             if np.isnan(event_timestamps[n]) == 0: #The the event has occurred or the state has been visited
-                frame_time = np.arange(trial_start_time_covered[trial_id[n]], trial_end_time[trial_id[n]] + frame_interval, frame_interval) #Add one more frame as safety margin   
+                frame_time = np.arange(0, trial_end_time[trial_id[n]] + frame_interval, frame_interval) #Add one more frame as safety margin   
                 tmp = frame_time - event_timestamps[n] #Calculate the time difference
                 event_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_start_frames[trial_id[n]])
              

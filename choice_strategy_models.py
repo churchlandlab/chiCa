@@ -553,5 +553,40 @@ def post_outcome_side_switch(trialdata):
 
                     
     return side_switch, heading_direction, poke_on_previous, poke_timing
+  
+#------------------------------------------------------------------------------  
+#%% ---- Look more closely at what happends after early withdrawals. Does the
+#        mouse still go to one side, does it wait?
+def early_withdrawal_action(trialdata):
+    '''xxx'''
     
+    import numpy as np
+    import pandas as pd
+    
+    #Retrieve time of early withdrawal and subsequent poke on one of the side pokes
+    early_withdrawal_time = np.zeros([trialdata.shape[0]]) * np.nan
+    side_poke_time = np.zeros([trialdata.shape[0]]) * np.nan
+    chosen_side = np.zeros([trialdata.shape[0]]) * np.nan
+   
+    for k in range(trialdata.shape[0]):
+        if np.isnan(trialdata['DemonEarlyWithdrawal'][k][0]) == 0:
+            early_withdrawal_time[k] = trialdata['DemonEarlyWithdrawal'][k][0] - trialdata['DemonInitFixation'][k][0]
+            
+            #Check for left and right port entries
+            tmp_l = trialdata['Port1In'][k][trialdata['Port1In'][k] > trialdata['DemonEarlyWithdrawal'][k][0]]
+            tmp_r = trialdata['Port3In'][k][trialdata['Port3In'][k] > trialdata['DemonEarlyWithdrawal'][k][0]]
+            if (tmp_l.shape[0] == 1) & (tmp_r.shape[0] == 0):
+                side_poke_time[k] = tmp_l[0]
+                chosen_side[k] = 0
+            elif (tmp_r.shape[0] == 1) & (tmp_l.shape[0] == 0):
+                 side_poke_time[k] = tmp_r[0]
+                 chosen_side[k] = 1
+            elif (tmp_r.shape[0] == 1) & (tmp_l.shape[0] == 1):
+                 if tmp_l[0] < tmp_r[0]:
+                     side_poke_time[k] = tmp_l[k]
+                     chosen_side[k] = 0
+                 else:
+                     side_poke_time[k] = tmp_r[0]
+                     chosen_side[k] = 1
 
+    return early_withdrawal_time, side_poke_time, chosen_side
