@@ -383,10 +383,11 @@ if not use_parallel:
     # out_dict['k_fold'] = k_folds
 
 #----
-elif use_parallel(): #Run the loop in parallel
+elif use_parallel: #Run the loop in parallel
     #Do some importing that is not necessary when running on one worker
     import ipyparallel as ipp
     import os
+    from time import time
     
     #Determine the number of engines that can be used on the local machine
     num_engines = os.cpu_count() - 1 #Spare one for the client!
@@ -416,14 +417,18 @@ elif use_parallel(): #Run the loop in parallel
     testing_gen = regenerator(testing, len(shuffle_regressor))
     
     print('Starting the fitting...')
+    start_time = time()
     #Pre-allocate an output variable
     res = []
     res.append(dview.map_sync(chiCa.fit_encoding_model_shuffles,
                               X_gen, Y_gen, shuffle_regressor, analog_gen, training_gen, testing_gen))
     #First argument is the function to be executed and the following arguments are
     #inputs to the function
-    cluster.stop_cluster() #Make sure to release the engines when the job is done!
-    print('Fitting completed!')
+    cluster.stop_cluster() #Release the engines at the end of the task!
+    
+    stop_time = time()
+    print(f'Fitting completed in {stop_time - start_time} seconds.')
+
     #Distribute the data into lists
     all_betas = []
     all_alphas = []
