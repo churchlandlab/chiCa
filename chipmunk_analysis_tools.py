@@ -326,7 +326,11 @@ def align_behavioral_video(camlog_file):
     camera_name = comments[0][spaces[1]+1: spaces[2]] #The name comes between the second and the third space
     
     #Get the video frame interval in s
-    video_frame_interval = np.mean(np.diff(logdata['timestamp'])) #Compute average time between frames
+    tmp_interval = np.diff(logdata['timestamp'])
+    if np.sum(tmp_interval > 3*np.std(tmp_interval)) > 0:
+        raise ValueError('There is at least one very unusual frame interval.\nPlease check the log file.')
+    else:
+        video_frame_interval = np.mean(np.diff(logdata['timestamp'])) #Compute average time between frames
     
     #Find trial start frames
     onsets, offsets = unpackbits(logdata['var2']) #The channel log is always unnamed and thus receives the key var2
