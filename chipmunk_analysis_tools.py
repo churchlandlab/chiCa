@@ -327,7 +327,7 @@ def align_behavioral_video(camlog_file):
     
     #Get the video frame interval in s
     tmp_interval = np.diff(logdata['timestamp'])
-    if np.sum(tmp_interval > 3*np.mean(tmp_interval)) > 0: #Check whether the intervals make sense
+    if np.sum(tmp_interval > 2*np.mean(tmp_interval)) > 0: #Check whether the intervals make sense
         raise ValueError('There is at least one very unusual frame interval.\nPlease check the log file.')
     else:
         video_frame_interval = np.mean(np.diff(logdata['timestamp'])) #Compute average time between frames

@@ -14,7 +14,7 @@ from os.path import splitext, join
 #sys.path.append('C:/Users/Lukas Oesch/Documents/ChurchlandLab/chiCa')
 #import decoding_utils
 #sys.path.append('C:/Users/Lukas Oesch/Documents/ChurchlandLab/analysis_sandbox')
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, StratifiedKFold
 from scipy.ndimage import gaussian_filter1d
 # sys.path.append('C:/Users/Lukas Oesch/Documents/ChurchlandLab/regbench')
 # import regbench as rb
@@ -29,16 +29,24 @@ signal_type = 'F'
 
 k_folds = 10 #For regular random cross-validation
 
-fit_regressor_group = True #Groups refers to a set of regressors obtained from one modality, like cognitive regressors from
-#task events, or head orientation from miniscope gyro.
-#If set to false the model will be fit to individual regressors, excluding
-#the intercept regressors
+# fit_regressor_group = True #Groups refers to a set of regressors obtained from one modality, like cognitive regressors from
+# #task events, or head orientation from miniscope gyro.
+# #If set to false the model will be fit to individual regressors, excluding
+# #the intercept regressors
+
+which_models = 'group' # 'individual', 'timepoint'
+#Determines what type of models should be fitted. 'group' will lump specified regressors
+#into a group and fit models for the cvR2 and dR2 for each of the groups, 'individual'
+#will assess the explained variance for each regressor alone and 'timepoint' will
+#look at the task regressors collectively but evaluate the model performance at each
+#trial time separately
 
 add_complete_shuffles = 0 #Allows one to add models where all the regressors
 #are shuffled idependently. This can be used to generate a null distribution for
 #the beta weights of certain regressors
 
 use_parallel = True #Whether to do parallel processing on the different shuffles
+exclude_video_me = True #Do not use video me for this run
 
 #%%------Loading the data--------------------
 trial_alignment_file = glob.glob(session_dir + '/analysis/*miniscope_data.npy')[0]
@@ -177,7 +185,7 @@ for k in range(int((x_include.shape[1] - block.shape[1]) / block.shape[1])):
     individual_reg_idx.append(np.arange(block.shape[1] + block.shape[1]*k, block.shape[1] + block.shape[1] * (k+1)))
 
 regressor_labels = ['trial_time', 'choice', 'stim_strength', 'outcome', 'previous_choice', 'previous_outcome', 'pitch', 'roll', 'yaw']
-regressor_size = [block.shape[0], block.shape[0], block.shape[0], block.shape[0], block.shape[0], block.shape[0], 1, 1, 1]
+regressor_size = [block.shape[0], block.shape[0], block.shape[0], block.shape[0], block.shape[0], block.shape[0], 2, 2, 2]
 for k in body_part_name:
     regressor_labels = regressor_labels + [k + '_x', k + '_y']
     regressor_size = regressor_size + [2]
@@ -212,7 +220,10 @@ for k in range(len(aligned_to)):
                 matching_frames.append(tmp)
         
         Y.append(signal[zero_frame + add_to,:][:, keep_neuron])
-        x_analog.append(np.concatenate((head_orientation[zero_frame + add_to,:], body_parts[matching_frames,:], video_svd[matching_frames,:], me_svd[matching_frames,:]), axis=1))
+        if exclude_video_me:
+            x_analog.append(np.concatenate((head_orientation[zero_frame + add_to,:], body_parts[matching_frames,:], video_svd[matching_frames,:]), axis=1))
+        else:
+            x_analog.append(np.concatenate((head_orientation[zero_frame + add_to,:], body_parts[matching_frames,:], video_svd[matching_frames,:], me_svd[matching_frames,:]), axis=1))
         part_likelihood.append(part_likelihood_estimate[matching_frames,:])
         
         trial_timestamps_imaging.append(zero_frame + add_to)
@@ -234,7 +245,10 @@ reg_group_idx = []
 reg_group_idx.append(np.arange(block.shape[1],x_include.shape[1])) #Index to all the cognitive regressors at one
 reg_group_idx.append(np.arange(reg_group_idx[-1][-1]+1, reg_group_idx[-1][-1]+1+ head_orientation.shape[1]))
 reg_group_idx.append(np.arange(reg_group_idx[-1][-1]+1, reg_group_idx[-1][-1]+1+ body_parts.shape[1]))
-reg_group_idx.append(np.arange(reg_group_idx[-1][-1]+1, reg_group_idx[-1][-1]+1+ video_svd.shape[1] + me_svd.shape[1]))                   
+if exclude_video_me:
+    reg_group_idx.append(np.arange(reg_group_idx[-1][-1]+1, reg_group_idx[-1][-1]+1+ video_svd.shape[1]))
+else:
+    reg_group_idx.append(np.arange(reg_group_idx[-1][-1]+1, reg_group_idx[-1][-1]+1+ video_svd.shape[1] + me_svd.shape[1]))                   
 
 #Determine which regressors are expressed as pairs
 single_regressors = np.hstack((reg_group_idx[0],reg_group_idx[3])) #Cognitive and video + video me regressors come as singles
@@ -255,16 +269,16 @@ trial_timestamps_video = np.squeeze(trial_timestamps_video)
 #%%------------Determine which regressor to shuffle
 shuffle_regressor = [None] #The full model with no shuffling
 
-if fit_regressor_group: #Shuffle all the regressors belonging to one regressor group
+if which_models == 'group': #Shuffle all the regressors belonging to one regressor group
     for k in reg_group_idx:
-        tmp = np.arange(X.shape[1]).tolist()
+        tmp = np.arange(block.shape[0], X.shape[1]).tolist()
         tmp = list(set(tmp) - set(k))
         shuffle_regressor.append(tmp) #The single variable group models
     
     for k in reg_group_idx:
         shuffle_regressor.append(k.tolist()) #The eliminate-one group models
 
-else: #One regressor or a pair of coordinates are shuffled -> unique explained variance
+elif which_models == 'individual': #One regressor or a pair of coordinates are shuffled -> unique explained variance
     # shuffle_individual = np.arange(block.shape[1], x_include.shape[1] + head_orientation.shape[1]).tolist() #Exclude the time regressors from shuffling for now
     # shuffle_pairs = np.arange(shuffle_individual[-1] + 1, shuffle_individual[-1] + 1 + body_parts.shape[1], 2).tolist()
     for k in single_regressors:
@@ -281,15 +295,29 @@ else: #One regressor or a pair of coordinates are shuffled -> unique explained v
         shuffle_regressor.append([k]) #The eliminate-one models
     for k in paired_regressors:
         shuffle_regressor.append([k, k+1])
-
+        
+elif which_models == 'timepoint': #This mode looks at how much the explained
+#variance for the different task regressors fluctuates over the course of the trial.
+#It takes advantage of fitting all the continuous regressors for the entire trial but
+#evaluates only a single timepoint in the trial, thus the baseline model to compare to
+#is the model with all task regressors shuffled.
+# NOTE: This is under construction and only cvR2 is implemented now...
+    for k in range(block.shape[0]):
+         tmp = np.arange(block.shape[0], x_include.shape[1]).tolist()
+         rem_set = k + block.shape[0] * np.arange(1, x_include.shape[1]/block.shape[0]).astype(int)
+         tmp = [i for i in tmp if i not in rem_set] #Remove by list content
+         shuffle_regressor.append(tmp)
+    
 #Add a set number of complete shuffles, except for the intercept term
 for k in range(add_complete_shuffles):
     shuffle_regressor.append(np.arange(block.shape[0], X.shape[1]).tolist())
 #%%-------Draw the training and testing splits-------------------
 
 #First get the splits for training and testing sets. These will be constant throughout
-kf = KFold(n_splits = k_folds, shuffle = True) 
-k_fold_generator = kf.split(X, Y) #This returns a generator object that spits out a different split at each call
+#kf = KFold(n_splits = k_folds, shuffle = True) 
+kf = StratifiedKFold(n_splits = k_folds, shuffle = True)
+timepoint_labels = np.tile(np.arange(block.shape[0]),valid_trials.shape[0])
+k_fold_generator = kf.split(X, timepoint_labels) #This returns a generator object that spits out a different split at each call
 training = []
 testing = []
 for draw_num in range(k_folds):
@@ -304,6 +332,8 @@ if not use_parallel:
     all_alphas = []
     all_rsquared = []
     all_corr = []
+    all_r_timecourse = []
+    all_corr_timecourse = []
     
     #for shuffle in range(len(shuffle_regressor)):
     for shuffle in shuffle_regressor:    
@@ -365,12 +395,14 @@ if not use_parallel:
         
         # stop_fitting = time()
         # print(f'Finished run {shuffle} in {stop_fitting - start_fitting}')
-        alphas, betas, r_squared, corr = chiCa.fit_encoding_model_shuffles(X, Y, shuffle, analog, training, testing)
+        alphas, betas, r_squared, corr, y_test, y_hat = chiCa.fit_encoding_model_shuffles(X, Y, shuffle, analog, training, testing)
+        time_r, time_corr = chiCa.r_squared_timecourse(y_test, y_hat, testing, block.shape[0])
         all_alphas.append(alphas)
         all_betas.append(betas)
         all_rsquared.append(r_squared)
-        all_corr.append(corr)   
-    
+        all_corr.append(corr)
+        all_r_timecourse.append(time_r)
+        all_corr_timecourse.append(time_corr)
     # #Store results
     # out_dict = dict()
     # out_dict['betas'] = all_betas
@@ -390,13 +422,15 @@ elif use_parallel: #Run the loop in parallel
     from time import time
     
     #Determine the number of engines that can be used on the local machine
-    num_engines = os.cpu_count() - 1 #Spare one for the client!
+    #num_engines = os.cpu_count() - 1 #Spare one for the client!
+    num_engines = 2 #Massive parallelization might not be beneficial because numpy can run matrix operations from c on multiple processors
     
     #Start cluster and set up a client
     cluster = ipp.Cluster(profile='myProfile', n=num_engines) #Specify something here, otherwise ipp will look for the default file
     cluster.start_cluster_sync() #Short hand to start the cluster
     rc = cluster.connect_client_sync() #Connect a client to the cluster
-    dview = rc.direct_view() #Direct view to the engines?...
+    bview = rc.load_balanced_view()
+    #dview = rc.direct_view() #Direct view to the engines?...
     rc.wait_for_engines() #When executing blocks of code sometimes the engines
     #seem to not be ready to receive a job yet.
     
@@ -420,7 +454,7 @@ elif use_parallel: #Run the loop in parallel
     start_time = time()
     #Pre-allocate an output variable
     res = []
-    res.append(dview.map_sync(chiCa.fit_encoding_model_shuffles,
+    res.append(bview.map_sync(chiCa.fit_encoding_model_shuffles,
                               X_gen, Y_gen, shuffle_regressor, analog_gen, training_gen, testing_gen))
     #First argument is the function to be executed and the following arguments are
     #inputs to the function
@@ -453,6 +487,9 @@ out_dict['regressor_groups'] = reg_group_idx
 out_dict['shuffle_regressor'] = shuffle_regressor
 out_dict['k_fold'] = k_folds
 out_dict['frames_per_trial'] = block.shape[0]
-       
+#Temporary
+if use_parallel == False:
+    out_dict['r_squared_timecourse'] = all_r_timecourse
+    out_dict['corr_timecourse'] = all_corr_timecourse
 np.save(join(session_dir,'analysis',file_name), out_dict)
 

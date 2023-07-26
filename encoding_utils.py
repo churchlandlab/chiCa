@@ -464,7 +464,36 @@ def find_best_splits(all_train_splits, all_test_splits, Yt):
 #%%---Function to loop through different shuffles of the encoding model
 
 def fit_encoding_model_shuffles(X, Y, shuffle_indices, standardize_variables, training, testing):
-    '''xxx'''
+    '''Fit linear encoding model using the ridge_MML function. This function also
+    takes inputs to shuffle or z-score specified columns of the design matrix.
+    
+    Parameters
+    ----------
+    X: array, k x r design matrix where k are the number of observations and r 
+       the number of regressors.
+    Y: array, k x n response matrix where k are observations and n are neurons.
+       Note: Each column of Y will be z-scored to the training data.
+    shuffle_indices: array, regressor indices that need to be shuffled.
+    standardize_variables: array, regressor indices that need to be z-scored
+    training: list of arrays, the indices of observations to include for training
+    testing: list of arrays, the indices of observations to include for testing
+    
+    Returns
+    -------
+    alphas: array, best ridge penality for each neuron
+    betas: array, the regressor weights for each neuron
+    r_squared: array, average of the coefficient of determination calculated
+               for the model in each fold
+    corr: array, average of the squared correlation coefficient between true
+          and predicted neural responses for the model in each fold.
+    y_test: list of arrays: The true z-scored neural activity for the test sets
+            in each fold. Note: if the same training and testing splits are 
+            used for multiple rounds of shuffling different regressors this will
+            be the same for each round!
+    y_hat: list of arrays: The predicted neural activity from the model fits for
+                           for every fold
+    
+    '''
     
     #-------------------------------------------------------------------------
     import numpy as np
@@ -485,6 +514,9 @@ def fit_encoding_model_shuffles(X, Y, shuffle_indices, standardize_variables, tr
     tmp_betas = []
     tmp_r_squared = []
     tmp_corr = []
+    cum_y_test = []
+    cum_y_hat = []
+    
     for fold in range(len(training)):      
         y_data = Y[training[fold],:]
         y_std = np.std(y_data, axis=0)
@@ -526,7 +558,10 @@ def fit_encoding_model_shuffles(X, Y, shuffle_indices, standardize_variables, tr
         for q in range(y_test.shape[1]):
             t_corr[q] = np.corrcoef(y_test[:,q], y_hat[:,q])[0,1]**2 #It is the squared correlation coefficient here
         tmp_corr.append(t_corr)
-    
+        
+        cum_y_test.append(y_test)
+        cum_y_hat.append(y_hat)
+        
     betas = np.mean(tmp_betas, axis=0)
     r_squared = np.mean(tmp_r_squared, axis=0)
     corr = np.mean(tmp_corr, axis=0)
@@ -534,4 +569,45 @@ def fit_encoding_model_shuffles(X, Y, shuffle_indices, standardize_variables, tr
     stop_fitting = time()
     print(f'Finished run in {stop_fitting - start_fitting}')
     
-    return alphas, betas, r_squared, corr
+    return alphas, betas, r_squared, corr, cum_y_test, cum_y_hat
+#------------------------------------------------------------------------------
+#%%---------------------------------------------------------------------------
+
+def r_squared_timecourse(y_test, y_hat, testing, trial_duration):
+    '''Reconstruct the coefficient of determination for the different trial times
+    using the predictions from k folds and the corresponding true activity'''
+    
+    import numpy as np
+    
+    #Put all the list elements together as an array
+    y_t = y_test[0]
+    y_h = y_hat[0]
+    test_indices = testing[0]
+    for k in range(1,len(testing)):
+        y_t = np.vstack((y_t, y_test[k]))
+        y_h = np.vstack((y_h, y_hat[k]))
+        test_indices = np.hstack((test_indices, testing[k])) #The prefered dimension are columns, so for 0-dimensional arrays append to columns..
+    
+    #Sort the arrays so that one frame occurs after the other one
+    sort_idx = np.argsort(test_indices)
+    y_t = np.array(y_t[sort_idx,:])
+    y_h = np.array(y_h[sort_idx,:])
+
+    #Initialize array
+    r_squared = np.zeros([trial_duration, y_t.shape[1]]) * np.nan
+    corr = np.zeros([trial_duration, y_t.shape[1]]) * np.nan
+    for k in range(trial_duration):
+        time_t = np.arange(k, y_t.shape[0], trial_duration)
+        
+        #Calculate the coefficient of detemination
+        ss_results = np.sum((y_t[time_t,:] - y_h[time_t,:])**2, axis = 0)
+        ss_total = np.sum((y_t[time_t,:] - np.mean(y_t[time_t,:], axis=0))**2, axis = 0)
+        r_squared[k,:] = 1 - (ss_results / ss_total) 
+        
+         #Also compute squared pearon correlation
+        t_corr = np.zeros([y_t.shape[1]])*np.nan
+        for q in range(y_t.shape[1]):
+            t_corr[q] = np.corrcoef(y_t[time_t,q], y_h[time_t,q])[0,1]**2 #It is the squared correlation coefficient here
+        corr[k,:] = t_corr
+        
+    return r_squared, corr

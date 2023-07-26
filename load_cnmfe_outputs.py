@@ -48,11 +48,15 @@ def load_data(data_source):
         params = hf.get('params') 
         image_dims = np.array(params['data/dims'])
         frame_rate = np.array(params['data/fr'])
-        movie_file = hf.get('mmap_file')[()] # Use [()] notation to access the value of a dataset in h5
-        if not isinstance(movie_file, str):
-            movie_file = movie_file.decode() #This is an issue when changing to other operating system
-        movie_file = Path(movie_file) #Convert to path
-    
+        try: #The mc_movie path can get lost in the labadta implementation of the workflow...
+            movie_file = hf.get('mmap_file')[()] # Use [()] notation to access the value of a dataset in h5
+        
+            if not isinstance(movie_file, str):
+                movie_file = movie_file.decode() #This is an issue when changing to other operating system
+            movie_file = Path(movie_file) #Convert to path
+        except: 
+            movie_file = None
+            
         C = np.array(hf.get('estimates/C'))
         S = np.array(hf.get('estimates/S'))
         

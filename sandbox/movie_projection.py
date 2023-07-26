@@ -31,7 +31,7 @@ def movie_average_projection(movie_file, chunk_size = 2000):
         if k*chunk_size + chunk_size > frame_number:
             stop_f = frame_number - (k  * chunk_size)
         
-        mov = np.zeros([chunk_size, 1, frame.shape[0], frame.shape[1]]) * np.nan
+        mov = np.zeros([chunk_size, 1, frame.shape[0], frame.shape[1]],dtype=int)
         cap.set(cv2.CAP_PROP_POS_FRAMES, start_f);
         for n in range(stop_f):
             success, f = cap.read()
