@@ -26,17 +26,17 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
     #use_name = 'prior_choice_by_prior_stim_category_stim_period'
     use_name = None
     #session_dir = 'C:/data/LO037/20221005_162433'
-    session_dir = 'C:/data/LO032/20220923_135753'
+    session_dir = 'C:/data/LY008/20230504_123936'
     #session_dir =  'C:/Users/Lukas Oesch/Documents/ChurchlandLab/TestDataChipmunk/TestMiniscopeAlignment/LO028/20220209_153012' #Can also be None
     #session_dir = None
     signal_type = 'f' #The type of traces to be used for decoding c = denoised, s = inferred spikes, f = detrended raw fluorescence
     aligned_state = 'DemonInitFixation' #State to align to 
-    decoder_range = [-10, 5] #The range of frames from the alignment time point that should be included,
+    decoder_range = [-30, 1] #The range of frames from the alignment time point that should be included,
     #python style lower inclusive, upper exclusive, thus one frame would be [0,1]
     window_size = 1 #The size of the sliding window
     #CAUTION: Only odd-numbered windows symmetrically distribute the activity data. Even-numbered windows
     #weight the prior frames a little more strongly
-    label_name = 'correct_side' #The column name of the label in the trialdata dataframe
+    label_name = 'response_side' #The column name of the label in the trialdata dataframe
     label_trials_back = 0 #How many consecutive trials back the label should be looked at
     secondary_label_name = 'response_side' #The column name of the secondary label in the trialdata dataframe
     secondary_label_trials_back = 1 #How many trials back the secondary lablel should be considered
@@ -196,16 +196,16 @@ if __name__ == '__main__': #This part is required for using multiprocessing with
                                 np.arange(decoder_range[0], decoder_range[1]).tolist(), [window_size] * (decoder_range[1] - decoder_range[0])]).T
     output_data.columns = ['models', 'labels', 'labels_trials_back', 'secondary_labels', 'secondary_labels_trials_back', 'state_aligned_to', 'frame_from_alignment', 'window_size']
     
-    if not isdir(session_dir + '/decoding'): 
-        mkdir(session_dir + '/decoding')
+    if not isdir(session_dir + '/analysis'): 
+        mkdir(session_dir + '/analysis')
     
     #If a more human-understandable file name is specified use it, otherwise construct from data
     if use_name is None: 
         if secondary_label_name is None:
-            output_name = session_dir + '/decoding/' + label_name + '_' + str(label_trials_back) + '_trials_back_aligned_to_' + aligned_state + '.h5'
+            output_name = session_dir + '/analysis/' + 'decoding_' + label_name + '_' + str(label_trials_back) + '_trials_back_aligned_to_' + aligned_state + '.h5'
         else:
-            output_name = session_dir + '/decoding/' + label_name + '_' + str(label_trials_back) +  '_trials_back_balanced_by_' + secondary_label_name + '_' + str(secondary_label_trials_back) + '_trials_back_aligned_to_' + aligned_state + '.h5'  
+            output_name = session_dir + '/analysis/' + 'decoding_' + label_name + '_' + str(label_trials_back) +  '_trials_back_balanced_by_' + secondary_label_name + '_' + str(secondary_label_trials_back) + '_trials_back_aligned_to_' + aligned_state + '.h5'  
     else:
-        output_name = session_dir + '/decoding/' + use_name + '.h5'
+        output_name = session_dir + '/analysis/' + use_name + '.h5'
         
     output_data.to_hdf(output_name, '/Data')

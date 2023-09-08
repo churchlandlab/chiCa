@@ -378,10 +378,15 @@ def balance_dataset(labels, secondary_labels = None):
     '''Balance the number of observaitions for each class in the dataset by
     subsampling from the majority classes while retaining all observations of 
     the minority class. This function offers the option to balance for two
-    types of classes. This is useful when for decoding stimulus category 
-    independent of animal choice as they are highly correlated in expert animals
-    and therefore unbalanced. Note that all the returned indices are permuted
-    within class and indices for classes are stacked on to of each other.
+    types of classes. When this is desired the proportion of subclass labels
+    will be matched for the different classes. There can be an arbitratry number
+    of secondary classes as long as they describe non-independent. For example
+    one can balance for previous choices and outcomes in the labels by constructing
+    secondary labels as: previous_choice == 0 & previous_outcome == 0 = 0, 
+    previous_choice == 0 & previous_outcome == 1 = 1,
+    previous_choice == 1 & previous_outcome == 0 = 2,
+    previous_choice == 1 & previous_outcome == 1 = 3.
+    In this way they span the entire dataset and represent non-independent conditions.
     
     Parameters
     ----------
@@ -393,9 +398,8 @@ def balance_dataset(labels, secondary_labels = None):
     -------
     pick_to_balance: numpy array, vector of indices for samples to be icluded
                      to obtain a balanced dataset.
-    sample_num = int, the number of samples per condition. For simple balancing
-                 pick_to_balance = 2*sample_num, for balancing with a secondary
-                 variable pick_to_balance = 2*2*sample_num.
+    sample_num = int, the number of samples per condition. This means that
+                 pick_to_balance.shape[0] == 2*sample_num.
                      
     Examples
     --------
@@ -425,20 +429,31 @@ def balance_dataset(labels, secondary_labels = None):
         subclasses = np.unique(secondary_labels)
         subclasses = subclasses[np.isnan(subclasses)==0] #Determine the classes in the labels and exclude nans
     
-        subclass_counts = np.zeros([subclasses.shape[0], classes.shape[0]]) #Generate a matrix with subclass counts (in rows) by class labels (in columns)
-        for k in range(classes.shape[0]):
-            for n in range(subclasses.shape[0]):
-                subclass_counts[n,k] = np.sum(secondary_labels[labels==classes[k]]==subclasses[n])
-                #Within the specified class sum up all the secondary_labels that correspond to a particular subclass
-                
-        sample_num = int(np.min(subclass_counts))
+    
+        #Generate contingency table of dimensions classes x secondary_classes
+        cont_table = np.zeros([classes.shape[0], subclasses.shape[0]])
+        for k in range(subclasses.shape[0]):
+            cont_table[0,k] = np.sum(secondary_labels[labels==0]==subclasses[k])
+            cont_table[1,k] = np.sum(secondary_labels[labels==1]==subclasses[k])
+            
+        #Find column minima, these are the minimum amount of samples of a specific secondary class between the classes
+        col_min = np.min(cont_table, axis=0).astype(int)
+        sample_num = np.sum(col_min).astype(int) #Sum over the minima to find the number of samples per class
+        #If the secondary labels are relatively similraly distributed in the different classes this will
+        #result in the number of samples often being identical with the number of observations of the minmum class.
+        #Otherwise the number will be smaller
         
-        #Start assembling the indices for balancing subclasses within balanced classes
-        pick_to_balance = np.array([], dtype=int)
-        for k in range(0, classes.shape[0]):
-            for n in range(0,subclasses.shape[0]):
-                temp_permuted = np.random.permutation(np.where((labels==classes[k]) & (secondary_labels==subclasses[n]))[0])             
-                pick_to_balance = np.hstack((pick_to_balance, temp_permuted[0:sample_num]))
+        pick_to_balance = []
+        for k in range(subclasses.shape[0]):
+           for n in range(classes.shape[0]):
+               if cont_table[n,k] == col_min[k]:
+                   pick_to_balance.append(np.where((labels == classes[n]) & (secondary_labels == subclasses[k]))[0])
+               else:
+                   pick_to_balance.append(np.random.permutation(np.where((labels == classes[n]) & (secondary_labels == subclasses[k]))[0])[:col_min[k]])
+         
+        pick_to_balance = np.sort(np.hstack(pick_to_balance).T)
+                
+       
 
     return pick_to_balance, sample_num
 

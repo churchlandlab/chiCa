@@ -755,3 +755,73 @@ def align_miniscope_data(caiman_file, coax_position = None):
         
 #############################################################################
 #%%
+
+def get_experienced_stimulus_events(trialdata, stim_modalities = ['visual', 'auditory', 'audio-visual']):
+    '''Retrieve a list of timestamps for the stimulus events experienced by the animal.
+    Note: When the extended stim time > 0 there might be stimulus events after
+    the 1s of the stim train and the number of experienced stim events might not match
+    the intended stim rate.
+    
+    Paramters
+    ---------
+    trialdata: pandas data frame, the behavioral data for this session
+    stim_modalities: list of strings, the modalities of the stimuli to consider,
+                     default is are all.
+                     
+    Returns
+    -------
+    t_stamps: list of numpy arrays, experienced sensory stimulus events. The length
+              of the list is the number of trials, any array containing a nan
+              at the first position represents an early withdrawal before stimulus
+              onset.
+              
+    ---------------------------------------------------------------------------
+    '''
+    
+    import numpy as np
+    import pandas as pd
+    
+    t_stamps = trialdata['stimulus_event_timestamps'].tolist()
+    
+    #Check if for some or all the trials an exended stimulus time was given
+    for k in range(len(t_stamps)):
+        ext_t = trialdata['ExtraStimulusDuration'][k] #How much time on top of the original 1 s stim train was given?
+        #Make sure you only include stimuli that were actually played. In the case of 
+        #an early withdrawal for example some stimulus events might be missing...
+        if np.isnan(trialdata['DemonEarlyWithdrawal'][k][0]):  #Trials where there is NO early withdrawal
+            #Now also check if extended stimulus time was given, in which case the
+            #stim train was simply repeated after 1 s
+            if ext_t > 0:
+                onset = trialdata['PlayStimulus'][k][0]
+                include = (t_stamps[k] - onset < ext_t) & (t_stamps[k] - onset + 1 < trialdata['DemonWaitForResponse'][k][1] - onset)
+                #Include timestamps that are within the bounds of the exentended stim time and that were seen
+                if include.shape[0] > 0:
+                    t_stamps[k] = np.hstack((t_stamps[k], t_stamps[k][include] + 1)) #Add the 1 s of the actual stim train
+                
+        elif np.isnan(trialdata['DemonEarlyWithdrawal'][k][0]) == 0:  #Trials with early withdrawal
+               if np.isnan(trialdata['PlayStimulus'][k][0]) == 0: #Stim will not be played if the mouse withdraws before
+                    onset = trialdata['PlayStimulus'][k][0]
+                    include = t_stamps[k] - onset < trialdata['DemonEarlyWithdrawal'][k][1] - onset
+                    if include.shape[0] > 0:
+                        t_stamps[k] = t_stamps[k][include]
+                    else:
+                        t_stamps[k] = np.array([np.nan])
+                    #Now make sure to capture stims during the extended stim period.
+                    #Note: If t_stamps[k] has already be truncated because the early withdrawal 
+                    #happened before the one second mark no other ones will be included below.
+                    if ext_t > 0:
+                        include = t_stamps[k] - onset + 1 < trialdata['DemonEarlyWithdrawal'][k][1] - onset
+                        #Include timestamps that are within the bounds of the exentended stim time and that were seen
+                        if include.shape[0] > 0:    
+                            t_stamps[k] = np.hstack((t_stamps[k], t_stamps[k][include] + 1)) #Add the 1 s of the actual stim train
+    
+    
+
+    #Now go through the trials and set stim times to nan where the modalities don't match
+    for k in range(len(t_stamps)):
+        if trialdata['stimulus_modality'][k] not in stim_modalities:
+            t_stamps[k] = np.array([np.nan])
+
+    return t_stamps
+    
+#------------------------------------------------------------------------------

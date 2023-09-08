@@ -615,6 +615,62 @@ def r_squared_timecourse(y_test, y_hat, testing, trial_duration):
 #-----------------------------------------------------------------------------
 #%%----------------------------------------------------------------------------
 
+def assemble_event_trace(aligned_event_timestamps, total_frame_num):
+    '''Create a binary event trace from trial aligned timestamps.
+    
+    Parameters
+    ----------
+    aligned_event_timestamps: numpy array, vector of timestamps aligned to miniscope
+                              or video data.
+    total_frame_num: int, the length of the recording in frame number.'
+    
+    Returns
+    ------
+    event_trace: numpy array, event trace.
+    
+    --------------------------------------------------------------------------
+    '''
+    
+    import numpy as np
+    
+    e_timestamps = np.array(aligned_event_timestamps[np.isnan(aligned_event_timestamps)==0], dtype=int) #Remove remaining nans in the timestamps
+    
+    event_trace = np.zeros([total_frame_num], dtype=int)
+    event_trace[e_timestamps] = 1
+    
+    return event_trace
 
+#-------------------------------------------------------------------------------
+#%%
 
+def shift_regressor(regressor_trace, min_shift, max_shift):
+    '''Generate a matrix of shifted traces from an input vector. The range of 
+    shifts is from min_shift to max_shift. The shifts are realized using numpy
+    roll introducing circular shifts.
+    
+    Parameters
+    ----------
+    regressor_trace: numpy array, a vector whose length is matched to the imaging data
+    min_shift: int, lower inclusive bound for shifts
+    max_shifts: intm, upper exclusive bound for shifts
+    
+    Returns
+    ------
+    shift_mat: numpy arry, array with the concatenated time shifted traces, the
+               the dimensions are vector.shape[0] x (max_shifts - min_shifts)
+               
+    ---------------------------------------------------------------------------
+    '''
+    
+    import numpy as np
+    
+    shift_mat = []
+    for k in range(min_shift, max_shift):
+        shift_mat.append(np.roll(regressor_trace, k))
+        
+    shift_mat = np.array(shift_mat).T
 
+    return shift_mat
+
+#------------------------------------------------------------------------------
+#%%

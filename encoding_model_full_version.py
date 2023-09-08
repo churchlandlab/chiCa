@@ -21,9 +21,9 @@ from scipy.ndimage import gaussian_filter1d
 import chiCa
 
 #%%------Some parameter definitions--------------------
-session_dir = 'C:/data/LO032/20220923_135753'
+session_dir = 'C:/data/LY008/20230405_172520'
 
-file_name = 'full_size_encoding_models'
+file_name = 'cognitive_reg_encoding_models_20230808'
 
 signal_type = 'F'
 
@@ -34,7 +34,7 @@ k_folds = 10 #For regular random cross-validation
 # #If set to false the model will be fit to individual regressors, excluding
 # #the intercept regressors
 
-which_models = 'group' # 'individual', 'timepoint'
+which_models = 'cognitive' #'group' # 'individual', 'timepoint'
 #Determines what type of models should be fitted. 'group' will lump specified regressors
 #into a group and fit models for the cvR2 and dR2 for each of the groups, 'individual'
 #will assess the explained variance for each regressor alone and 'timepoint' will
@@ -45,8 +45,8 @@ add_complete_shuffles = 0 #Allows one to add models where all the regressors
 #are shuffled idependently. This can be used to generate a null distribution for
 #the beta weights of certain regressors
 
-use_parallel = True #Whether to do parallel processing on the different shuffles
-exclude_video_me = True #Do not use video me for this run
+use_parallel = False #Whether to do parallel processing on the different shuffles
+exclude_video_me = False #Do not use video me for this run
 
 #%%------Loading the data--------------------
 trial_alignment_file = glob.glob(session_dir + '/analysis/*miniscope_data.npy')[0]
@@ -307,7 +307,20 @@ elif which_models == 'timepoint': #This mode looks at how much the explained
          rem_set = k + block.shape[0] * np.arange(1, x_include.shape[1]/block.shape[0]).astype(int)
          tmp = [i for i in tmp if i not in rem_set] #Remove by list content
          shuffle_regressor.append(tmp)
+
+elif which_models == 'cognitive':
+    #Shuffles the individual cognitive regressors, don't use parallel 
+    #to be able to reconstruct the timecourse
+    cog_reg = int(x_include.shape[1] / block.shape[0]) - 1
+    for k in range(cog_reg):
+        tmp = np.arange(block.shape[0], X.shape[1]).tolist()
+        tmp = list(set(tmp) - set(np.arange((k+1)*block.shape[0], (k+2)*block.shape[0])))
+        shuffle_regressor.append(tmp) #The single variable group models
     
+    for k in range(cog_reg):
+        shuffle_regressor.append(np.arange((k+1)*block.shape[0], (k+2)*block.shape[0])) #The eliminate-one group models
+
+
 #Add a set number of complete shuffles, except for the intercept term
 for k in range(add_complete_shuffles):
     shuffle_regressor.append(np.arange(block.shape[0], X.shape[1]).tolist())
