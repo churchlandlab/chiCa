@@ -151,11 +151,21 @@ def convert_specified_behavior_sessions(file_names, overwrite = False):
             # Retrieve the flag for revised choices
             trialdata.insert(trialdata.shape[1], 'revise_choice_flag', np.ones(trialdata.shape[0], dtype = bool) * sesdata['ReviseChoiceFlag'].tolist())
             
+            #Get the Bpod timestamps for the start of each new trial
+            trialdata.insert(trialdata.shape[1], 'trial_start_time' , sesdata['TrialStartTimestamp'].tolist())
+            
             #----Get the timestamp of when the mouse gets out of the response poke
             #Here, a minimum poke duration of 100 ms is a requirement. Coming out
             #of the response port after less than 100 ms is not considered a retraction
             #an will be ignored and the next Poke out event will be counted.
-            response_port_out = np.zeros([trialdata.shape[0]]) * np.nan
+            #Note: The timestamps are always calculated with respect to the 
+            #start of the trial during which the response happened, even if the 
+            #mouse only retracted on the next trial (usually when rewarded!)
+            #Also note that there is always a < 100 ms period where Bpod does
+            #not run a state machine and thus doesn't log events. It is possible that 
+            #that retraction events might be missed because of this interruption.
+            #These missed events will be nan.
+            response_port_out = []
             for k in range(trialdata.shape[0]):
                 event_name = None
                 if trialdata['response_side'][k] == 0:
@@ -187,9 +197,11 @@ def convert_specified_behavior_sessions(file_names, overwrite = False):
                             if tmp.shape[0] > 0:
                                 poke_ev = np.min(tmp) #These would actually come sorted already...
                 if poke_ev is not None:          
-                    response_port_out[k] = poke_ev + add_past_trial_time
+                    response_port_out.append(np.array([poke_ev + add_past_trial_time, poke_ev + add_past_trial_time]))
+                else:
+                    response_port_out.append(np.array([np.nan, np.nan]))
 
-            trialdata.insert(trialdata.shape[1], 'response_port_out', list(response_port_out))
+            trialdata.insert(trialdata.shape[1], 'response_port_out', response_port_out)
             
             
             if 'ObsOutcomeRecord' in sesdata.dtype.fields:
@@ -198,11 +210,7 @@ def convert_specified_behavior_sessions(file_names, overwrite = False):
                 trialdata.insert(trialdata.shape[1], 'observer_actual_wait_time' , tmp)
                 tmp = sesdata['TrialSettings'].tolist()
                 trialdata.insert(trialdata.shape[1], 'dobserver_ID' , tmp['obsID'].tolist())
-                
-            #Get the Bpod timestamps for the start of each new trial
-            trialdata.insert(trialdata.shape[1], 'trial_start_time' , sesdata['TrialStartTimestamp'].tolist())
-            
-            
+       
             
             #Finally, verify the the number of trials
             
