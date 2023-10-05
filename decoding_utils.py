@@ -446,12 +446,12 @@ def balance_dataset(labels, secondary_labels = None):
         pick_to_balance = []
         for k in range(subclasses.shape[0]):
            for n in range(classes.shape[0]):
-               if cont_table[n,k] == col_min[k]:
-                   pick_to_balance.append(np.where((labels == classes[n]) & (secondary_labels == subclasses[k]))[0])
-               else:
-                   pick_to_balance.append(np.random.permutation(np.where((labels == classes[n]) & (secondary_labels == subclasses[k]))[0])[:col_min[k]])
-         
-        pick_to_balance = np.sort(np.hstack(pick_to_balance).T)
+               # if cont_table[n,k] == col_min[k]:
+               #     pick_to_balance.append(np.where((labels == classes[n]) & (secondary_labels == subclasses[k]))[0])
+               # else:
+               #     pick_to_balance.append(np.random.permutation(np.where((labels == classes[n]) & (secondary_labels == subclasses[k]))[0])[:col_min[k]])
+               pick_to_balance.append(np.random.permutation(np.where((labels == classes[n]) & (secondary_labels == subclasses[k]))[0])[:col_min[k]])
+        pick_to_balance = np.hstack(pick_to_balance).T
                 
        
 
@@ -594,9 +594,10 @@ def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, 
     log_reg_models = pd.DataFrame()
     
     for s in range(subsampling_rounds):
-        pick_to_balance, _ = balance_dataset(labels, secondary_labels) #If the secondary label is None it will not be considered
+        pick_to_balance, _ = balance_dataset(labels, secondary_labels) #If the secondary label is None it will not be considered        
         models = train_logistic_regression(data[pick_to_balance,:], labels[pick_to_balance], k_folds, model_params)
         
+        models['pick_to_balance'] = [pick_to_balance] * models.shape[0]
         models['subsampling_round'] = np.ones(models.shape[0]) * s #Add a column with the run of subsampling performed
         log_reg_models = pd.concat([log_reg_models, models])
     

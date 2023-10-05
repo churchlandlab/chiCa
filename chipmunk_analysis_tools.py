@@ -145,11 +145,52 @@ def convert_specified_behavior_sessions(file_names, overwrite = False):
                 elif np.isnan(trialdata['DemonWrongChoice'][k][0]) == 0:
                     outcome_timing.append(np.array([trialdata['DemonWrongChoice'][k][0],trialdata['DemonWrongChoice'][k][0]]))
                 else:
-                    outcome_timing.append(np.array([np.nan]))
+                    outcome_timing.append(np.array([np.nan, np.nan]))
             trialdata.insert(trialdata.shape[1], 'outcome_presentation', outcome_timing)
             
             # Retrieve the flag for revised choices
             trialdata.insert(trialdata.shape[1], 'revise_choice_flag', np.ones(trialdata.shape[0], dtype = bool) * sesdata['ReviseChoiceFlag'].tolist())
+            
+            #----Get the timestamp of when the mouse gets out of the response poke
+            #Here, a minimum poke duration of 100 ms is a requirement. Coming out
+            #of the response port after less than 100 ms is not considered a retraction
+            #an will be ignored and the next Poke out event will be counted.
+            response_port_out = np.zeros([trialdata.shape[0]]) * np.nan
+            for k in range(trialdata.shape[0]):
+                event_name = None
+                if trialdata['response_side'][k] == 0:
+                    event_name = 'Port1Out'
+                elif trialdata['response_side'][k] == 1:
+                    event_name = 'Port3Out'
+                
+                poke_ev = None
+                if event_name is not None:
+                    #First check current trial
+                    add_past_trial_time = 0 #Time to be added if the retrieval only happens in the following trial
+                    tmp = trialdata[event_name][k][trialdata[event_name][k] > trialdata['outcome_presentation'][k][0]]
+                    
+                    #Now sometimes the mice retract very fast, faster than the normal reaction time
+                    #skip these events in this case and consider the next one
+                    candidates = tmp.shape[0]
+                    looper = 0
+                    while (poke_ev is None) & (looper < candidates):
+                        tmptmp = tmp[looper]
+                        if tmptmp - trialdata['outcome_presentation'][k][0] > 0.1:
+                            poke_ev = tmptmp
+                        looper = looper + 1
+                    
+                    if poke_ev is None: #Did not find a poke out event that fullfills the criteria
+                        if k < (trialdata.shape[0] - 1): # Stop from checking at the very end...
+                            tmp = trialdata[event_name][k+1][trialdata[event_name][k+1] < trialdata['Port2In'][k+1][0]]
+                            #Check all the candidate events at the beginning of the next trial but before center fixation.
+                            add_past_trial_time = trialdata['trial_start_time'][k+1] - trialdata['trial_start_time'][k]
+                            if tmp.shape[0] > 0:
+                                poke_ev = np.min(tmp) #These would actually come sorted already...
+                if poke_ev is not None:          
+                    response_port_out[k] = poke_ev + add_past_trial_time
+
+            trialdata.insert(trialdata.shape[1], 'response_port_out', list(response_port_out))
+            
             
             if 'ObsOutcomeRecord' in sesdata.dtype.fields:
                 trialdata.insert(1, 'observer_outcome_record', sesdata['ObsOutcomeRecord'].tolist())
@@ -158,7 +199,11 @@ def convert_specified_behavior_sessions(file_names, overwrite = False):
                 tmp = sesdata['TrialSettings'].tolist()
                 trialdata.insert(trialdata.shape[1], 'dobserver_ID' , tmp['obsID'].tolist())
                 
-                
+            #Get the Bpod timestamps for the start of each new trial
+            trialdata.insert(trialdata.shape[1], 'trial_start_time' , sesdata['TrialStartTimestamp'].tolist())
+            
+            
+            
             #Finally, verify the the number of trials
             
             
