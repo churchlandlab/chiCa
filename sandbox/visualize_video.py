@@ -39,7 +39,7 @@ class video_snippets:
     
     def __init__(self, video_file, time_points, video_frame_interval, window = 2, time_point_at = 'center'):
         self.video_file = video_file
-        self.time_points = time_points
+        self.time_points = list(time_points)
         self.video_frame_interval = video_frame_interval
         self.window = window
         self.time_point_at = time_point_at
@@ -55,10 +55,41 @@ class video_snippets:
         '''
         import numpy as np
         import cv2
+        #import decord as de
+        from time import time
         
         #Determine whether the movie is stored in one or multiple files
         if isinstance(self.video_file, str): #When the video is stored in one single file
         #Open video
+        
+            # #----------------------------------------------------------------
+            # #----Very incorrect decord search
+            # window_frames = int(round(self.window/self.video_frame_interval)) #Round first to not automatically floor for the int
+            # vr = de.VideoReader(self.video_file) #The video reader
+            # frame_number = vr._num_frame #Get the total number of frames
+            
+            # #Collect all the frame timesatamps
+            # timepoint_collection = []
+            # for k in range(len(self.time_points)):
+            #     if self.time_point_at == 'center': #Pick half the frames before and half the frames after the provided timepoints
+            #         start_frame = self.time_points[k] - round(window_frames/2) # Make sure to keep symmetric window also with uneven frame numbers
+            #         stop_frame = self.time_points[k] + round(window_frames/2)
+            #     elif self.time_point_at == 'start':
+            #         start_frame = self.time_points[k] # Start right at the timepoint
+            #         stop_frame = self.time_points[k] + window_frames + 1
+            #     timepoint_collection.append(np.arange(start_frame,stop_frame))
+            # timepoint_collection = np.hstack(timepoint_collection)
+            
+            # start_t = time()
+            # movie = vr.get_batch([timepoint_collection]).asnumpy()
+            # self.snippets = np.split(np.transpose(np.squeeze(movie[:,:,:,0]), [1,2,0]), len(self.time_points), axis=2)
+            
+            # print(f'Loaded snippets in {time() - start_t} seconds')
+            # print('----------------------------------------------')
+            
+           
+            #-------------------------------------------------------------------
+            #-------Precise but slow OpenCV version
             cap = cv2.VideoCapture(self.video_file)
         
             #Determine dimensions for specified loading later
@@ -66,9 +97,12 @@ class video_snippets:
             frame = f[:,:,1] #The video is gray-scale
             frame_number = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) #Number of frames 
             window_frames = int(round(self.window/self.video_frame_interval)) #Round first to not automatically floor for the int
-        
-            #Start loading the snippets
-            self.snippets = [] #Pre-allocate the snippet data
+            cap.release()
+            
+            
+            #Collect all the frame timesatamps
+            timepoint_collection = []
+            snippet_end = [] #Ugly but helps keeping data load smaller
             for k in range(len(self.time_points)):
                 if self.time_point_at == 'center': #Pick half the frames before and half the frames after the provided timepoints
                     start_frame = self.time_points[k] - round(window_frames/2) # Make sure to keep symmetric window also with uneven frame numbers
@@ -76,75 +110,109 @@ class video_snippets:
                 elif self.time_point_at == 'start':
                     start_frame = self.time_points[k] # Start right at the timepoint
                     stop_frame = self.time_points[k] + window_frames + 1
-                    
-                if start_frame < 0 or stop_frame > frame_number:
-                    self.snippets.append(None)
-                    print(f'Time point number {k} cannot be retrieved because it is out of the video bounds with the current window size, inserted None.')
-                else:
-                    movie = np.zeros([frame.shape[0], frame.shape[1], window_frames + 1], 'uint8') #The extra frame is the actual event that flanked by two equally sized chunks
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame);
-                    for n in range(window_frames + 1):
-                        success, f = cap.read()
-                        movie[:,:,n] = f[:,:,1]
-                    self.snippets.append(movie)
-                    print(f'Loaded snippet number {k}.')
-                
-        elif isinstance(self.video_file, list):
-            #Open video
-            cap = cv2.VideoCapture(self.video_file[0])
-            #Determine dimensions for specified loading later
-            success, f = cap.read()
-            frame = f[:,:,1] #The video is gray-scale
+                timepoint_collection.append(np.arange(start_frame,stop_frame))
+                snippet_end.append(stop_frame-1)
+            timepoint_collection = np.hstack(timepoint_collection)
+            # snippet_end = np.squeeze(snippet_end)
             
-            #Get the frame number of the first movie to navigate through the other ones 
-            frames_per_file = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) #Number of frames per video file in the list
-            
-            #Retrieve number frames on last movie (that may contain less frames) and sum all frames
-            cap = cv2.VideoCapture(self.video_file[len(self.video_file) -1])
-            tmp =  int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) #Number of frames in last video file
-            frame_number = frames_per_file * (len(self.video_file)-1) + tmp #Add the frame number of the last video to the numbers from all the preceeding ones
-            
-            window_frames = int(round(self.window/self.video_frame_interval)) #Round first to not automatically floor for the int
-        
-            #Start loading the snippets
+            cap = cv2.VideoCapture(self.video_file)
+            movie = []
+            start_t = time()
             self.snippets = [] #Pre-allocate the snippet data
-            for k in range(len(self.time_points)):
-                start_frame = self.time_points[k] - round(window_frames/2) # Make sure to keep symmetric window also with uneven frame numbers
-                stop_frame = self.time_points[k] + round(window_frames/2)
+            for k in range(int(timepoint_collection[-1]+1)): #Only need to loop through the last timepoint, given they are ordered
+                  success, f = cap.read()
+                  if k in timepoint_collection:
+                      movie.append(f[:,:,1])
+                      if k in snippet_end:
+                          self.snippets.append(np.transpose(np.squeeze(movie), [1,2,0]))
+                          movie = []
+            #movie = np.transpose(np.reshape(np.squeeze(movie), [len(self.time_points), window_frames + 1, frame.shape[0], frame.shape[1]]), [2,3,1,0])
+            # movie = np.transpose(np.squeeze(movie), [1,2,0])
+            # self.snippets = np.split(movie, len(self.time_points), axis=2)
+            print(f'Loaded snippets in {time() - start_t} seconds')
+            print('----------------------------------------------')
+            
+            #-----------------------------------------------------------------
+            #-------Old imprecise search version
+            # #Start loading the snippets
+            # self.snippets = [] #Pre-allocate the snippet data
+            # for k in range(len(self.time_points)):
+            #     if self.time_point_at == 'center': #Pick half the frames before and half the frames after the provided timepoints
+            #         start_frame = self.time_points[k] - round(window_frames/2) # Make sure to keep symmetric window also with uneven frame numbers
+            #         stop_frame = self.time_points[k] + round(window_frames/2)
+            #     elif self.time_point_at == 'start':
+            #         start_frame = self.time_points[k] # Start right at the timepoint
+            #         stop_frame = self.time_points[k] + window_frames + 1
+                    
+            #     if start_frame < 0 or stop_frame > frame_number:
+            #         self.snippets.append(None)
+            #         print(f'Time point number {k} cannot be retrieved because it is out of the video bounds with the current window size, inserted None.')
+            #     else:
+            #         movie = np.zeros([frame.shape[0], frame.shape[1], window_frames + 1], 'uint8') #The extra frame is the actual event that flanked by two equally sized chunks
+            #         cap.set(cv2.CAP_PROP_POS_FRAMES, int(start_frame))
+            #         print(f'Set position to: {cap.get(cv2.CAP_PROP_POS_FRAMES)}')
+            #         for n in range(window_frames + 1):
+            #             success, f = cap.read()
+            #             movie[:,:,n] = f[:,:,1]
+            #         self.snippets.append(movie)
+            #         print(f'Loaded snippet number {k}.')
                 
-                start_file_idx = int(np.floor(start_frame/frames_per_file)) #Retrieve the index of the movie containing the first frame of the snippet
-                stop_file_idx = int(np.floor(stop_frame/frames_per_file)) #Retrieve the index of the movie containing the first frame of the snippet
-                if start_frame < 0 or stop_frame > frame_number: #Make sure the specified window covers frames
-                    self.snippets.append(None)
-                    print(f'Time point number {k} cannot be retrieved because it is out of the video bounds with the current window size, inserted None.')
-                else:
-                    if start_file_idx == stop_file_idx:
-                        movie = np.zeros([frame.shape[0], frame.shape[1], window_frames + 1], 'uint8') #The extra frame is the actual event that flanked by two equally sized chunks
-                        start_in_file = start_frame - start_file_idx * frames_per_file #Go to the corresponding frame inside the file, subtracting the frames accounted for by the other files
+        # elif isinstance(self.video_file, list):
+        #     #Open video
+        #     cap = cv2.VideoCapture(self.video_file[0])
+        #     #Determine dimensions for specified loading later
+        #     success, f = cap.read()
+        #     frame = f[:,:,1] #The video is gray-scale
+            
+        #     #Get the frame number of the first movie to navigate through the other ones 
+        #     frames_per_file = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) #Number of frames per video file in the list
+            
+        #     #Retrieve number frames on last movie (that may contain less frames) and sum all frames
+        #     cap = cv2.VideoCapture(self.video_file[len(self.video_file) -1])
+        #     tmp =  int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) #Number of frames in last video file
+        #     frame_number = frames_per_file * (len(self.video_file)-1) + tmp #Add the frame number of the last video to the numbers from all the preceeding ones
+            
+        #     window_frames = int(round(self.window/self.video_frame_interval)) #Round first to not automatically floor for the int
+        
+        #     #Start loading the snippets
+        #     self.snippets = [] #Pre-allocate the snippet data
+        #     for k in range(len(self.time_points)):
+        #         start_frame = self.time_points[k] - round(window_frames/2) # Make sure to keep symmetric window also with uneven frame numbers
+        #         stop_frame = self.time_points[k] + round(window_frames/2)
+                
+        #         start_file_idx = int(np.floor(start_frame/frames_per_file)) #Retrieve the index of the movie containing the first frame of the snippet
+        #         stop_file_idx = int(np.floor(stop_frame/frames_per_file)) #Retrieve the index of the movie containing the first frame of the snippet
+        #         if start_frame < 0 or stop_frame > frame_number: #Make sure the specified window covers frames
+        #             self.snippets.append(None)
+        #             print(f'Time point number {k} cannot be retrieved because it is out of the video bounds with the current window size, inserted None.')
+        #         else:
+        #             if start_file_idx == stop_file_idx:
+        #                 movie = np.zeros([frame.shape[0], frame.shape[1], window_frames + 1], 'uint8') #The extra frame is the actual event that flanked by two equally sized chunks
+        #                 start_in_file = start_frame - start_file_idx * frames_per_file #Go to the corresponding frame inside the file, subtracting the frames accounted for by the other files
                         
-                        cap = cv2.VideoCapture(self.video_file[start_file_idx]) #Direct the video reader to the correct movie file
-                        cap.set(cv2.CAP_PROP_POS_FRAMES, start_in_file);
-                        for n in range(window_frames + 1):
-                            success, f = cap.read()
-                            movie[:,:,n] = f[:,:,1]
-                        self.snippets.append(movie)
-                        print(f'Loaded snippet number {k}.')
-                    else: #This is when the snippet is contained in two sequential files
-                        movie = np.zeros([frame.shape[0], frame.shape[1], window_frames + 1], 'uint8') #The extra frame is the actual event that flanked by two equally sized chunks
-                        start_in_file = [start_frame - start_file_idx * frames_per_file, 0]
-                        #Go to the corresponding frame inside the file, subtracting the frames accounted for by the previous files, start at the beginning for the second movie
-                        stop_after = [frames_per_file - start_in_file[0], window_frames - (frames_per_file - start_in_file[0]) + 1] #Add one to include last frame
-                        #Set after how many frames to stop reading from the respective file
-                        counter = 0 #Introduce this here to remember the position inside the snippet
-                        for m in range(start_file_idx, stop_file_idx + 1):
-                            cap = cv2.VideoCapture(self.video_file[m]) #Direct the video reader to the correct movie file, 
-                            cap.set(cv2.CAP_PROP_POS_FRAMES, start_in_file[m - start_file_idx]); #Set the first frame to read within the respective video
-                            for n in range(stop_after[m - start_file_idx]): #Pass the amount of frames to be read
-                                success, f = cap.read()
-                                movie[:,:,counter] = f[:,:,1]
-                                counter = counter + 1
-                        self.snippets.append(movie)
-                        print(f'Loaded snippet number {k}.')
+        #                 cap = cv2.VideoCapture(self.video_file[start_file_idx]) #Direct the video reader to the correct movie file
+        #                 cap.set(cv2.CAP_PROP_POS_FRAMES, start_in_file);
+        #                 for n in range(window_frames + 1):
+        #                     success, f = cap.read()
+        #                     movie[:,:,n] = f[:,:,1]
+        #                 self.snippets.append(movie)
+        #                 print(f'Loaded snippet number {k}.')
+        #             else: #This is when the snippet is contained in two sequential files
+        #                 movie = np.zeros([frame.shape[0], frame.shape[1], window_frames + 1], 'uint8') #The extra frame is the actual event that flanked by two equally sized chunks
+        #                 start_in_file = [start_frame - start_file_idx * frames_per_file, 0]
+        #                 #Go to the corresponding frame inside the file, subtracting the frames accounted for by the previous files, start at the beginning for the second movie
+        #                 stop_after = [frames_per_file - start_in_file[0], window_frames - (frames_per_file - start_in_file[0]) + 1] #Add one to include last frame
+        #                 #Set after how many frames to stop reading from the respective file
+        #                 counter = 0 #Introduce this here to remember the position inside the snippet
+        #                 for m in range(start_file_idx, stop_file_idx + 1):
+        #                     cap = cv2.VideoCapture(self.video_file[m]) #Direct the video reader to the correct movie file, 
+        #                     cap.set(cv2.CAP_PROP_POS_FRAMES, start_in_file[m - start_file_idx]); #Set the first frame to read within the respective video
+        #                     for n in range(stop_after[m - start_file_idx]): #Pass the amount of frames to be read
+        #                         success, f = cap.read()
+        #                         movie[:,:,counter] = f[:,:,1]
+        #                         counter = counter + 1
+        #                 self.snippets.append(movie)
+        #                 print(f'Loaded snippet number {k}.')
 
 
     def play(self, snippet_indices = [], separation = 0.3):

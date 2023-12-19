@@ -148,8 +148,8 @@ if __name__ == '__main__':
            the figure. The states that are plotted are set inside this function 
            currently but may be passed in a later version.'''
            
-        consider_states = ['DemonInitFixation', 'PlayStimulus', 'DemonWaitForResponse', 'outcome_presentation']
-        label_states = ['Start center fixation', 'Stimulus onset', 'Movement onset', 'Outcome']
+        consider_states = ['DemonInitFixation', 'DemonWaitForResponse', 'outcome_presentation', 'response_port_out']
+        label_states = ['Start center fixation', 'Movement onset', 'Outcome', 'Response port out']
         
         pattern = np.array([[0,0],[0,1],[1,0],[1,1]]) #Find these cases in the data
         

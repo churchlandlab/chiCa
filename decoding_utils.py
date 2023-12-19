@@ -109,10 +109,10 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
         for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
             if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
                 try:    
-                      frame_time = np.arange(trial_start_time_covered[n], trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0] + average_interval, average_interval) #Add one more frame as safety margin
+                      frame_time = np.arange(trial_start_time_covered[n], (trialdata['FinishTrial'][n][0] + 30) - trialdata['Sync'][n][0] + average_interval, average_interval) #Add one more frame as safety margin
                       #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
                 except:
-                      frame_time = np.arange(trial_start_time_covered[n], trialdata['FinishTrial'][n][0] - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
+                      frame_time = np.arange(trial_start_time_covered[n], (trialdata['FinishTrial'][n][0] + 30) - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
                       #If this is the previous implementation of chipmunk
                 tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
                 state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_starts[n])
@@ -130,10 +130,10 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
         for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
             if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
                 try:    
-                      frame_time = np.arange(0, trialdata['FinishTrial'][n][0] - trialdata['Sync'][n][0] + average_interval, average_interval)
+                      frame_time = np.arange(0, (trialdata['FinishTrial'][n][0] + 30) - trialdata['Sync'][n][0] + average_interval, average_interval)
                       #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
                 except:
-                      frame_time = np.arange(0, trialdata['FinishTrial'][n][0] - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
+                      frame_time = np.arange(0, (trialdata['FinishTrial'][n][0] + 30) - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
                       #If this is the previous implementation of chipmunk
                 tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
                 state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_starts[n])
@@ -374,19 +374,22 @@ def match_video_to_imaging(miniscope_frames, miniscope_reference_frame,
     return matching_frames
 
 #%%-----------Balance the data sets for top level variable and subvariable
-def balance_dataset(labels, secondary_labels = None):
+def balance_dataset(labels, secondary_labels = None, mode = 'proportional'):
     '''Balance the number of observaitions for each class in the dataset by
     subsampling from the majority classes while retaining all observations of 
     the minority class. This function offers the option to balance for two
     types of classes. When this is desired the proportion of subclass labels
     will be matched for the different classes. There can be an arbitratry number
-    of secondary classes as long as they describe non-independent. For example
-    one can balance for previous choices and outcomes in the labels by constructing
+    of secondary classes as long as they describe non-independent subclasses.
+    For example one can balance for previous choices and outcomes in the labels by constructing
     secondary labels as: previous_choice == 0 & previous_outcome == 0 = 0, 
     previous_choice == 0 & previous_outcome == 1 = 1,
     previous_choice == 1 & previous_outcome == 0 = 2,
     previous_choice == 1 & previous_outcome == 1 = 3.
     In this way they span the entire dataset and represent non-independent conditions.
+    The mode controls whether the secondary classes should either be sampled with
+    fixed proportions between the two main class labels (proportional, default)
+    or whether to take equal numbers of samples from all subclasses (equal).
     
     Parameters
     ----------
@@ -437,7 +440,11 @@ def balance_dataset(labels, secondary_labels = None):
             cont_table[1,k] = np.sum(secondary_labels[labels==1]==subclasses[k])
             
         #Find column minima, these are the minimum amount of samples of a specific secondary class between the classes
-        col_min = np.min(cont_table, axis=0).astype(int)
+        if mode == 'proportional':
+            col_min = np.min(cont_table, axis=0).astype(int)
+        elif mode == 'equal':
+            col_min = np.tile(np.min(cont_table).astype(int), cont_table.shape[1])
+            
         sample_num = np.sum(col_min).astype(int) #Sum over the minima to find the number of samples per class
         #If the secondary labels are relatively similraly distributed in the different classes this will
         #result in the number of samples often being identical with the number of observations of the minmum class.
@@ -461,10 +468,14 @@ def balance_dataset(labels, secondary_labels = None):
 def train_logistic_regression(data, labels, k_folds, model_params=None):
     '''Train regularized, corss-validated logistic regression models and perform
     a shuffled control. The corss-validation is performed in a stratified way,
-    to maintain similar proportions of the input lables. As a control, the labels
+    to maintain similar proportions of the input lables. PLease note that secondary
+    labels may not be balanced after this procedure. As a control, the labels
     of the training samples are shuffled and a model then trained on these shuffled
     labels. The shuffled model performance is evaluated on the correct testing
-    data.
+    data. This function performs optimization of the regularization strength if 
+    the 'inverse_regularization_strength' passed inside the model_params is a list
+    or array. The search will be performed on the first fold only and then applied
+    to all the subsequent folds.
     
     Parameters
     ----------
@@ -473,7 +484,8 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
     k_folds: int, number of folds to perform cross-validation on
     model_params: dict, specifies model parameters. The keys are: penalty 
                   (the type of regularization to be applied),
-                  inverse_regularization_strength, solver, fit_intercept
+                  inverse_regularization_strength (as int, or list or array),
+                  solver, fit_intercept
                   
     Returns
     -------
@@ -488,6 +500,7 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
     import pandas as pd
     from sklearn.linear_model import LogisticRegression
     from sklearn.model_selection import StratifiedKFold
+    np.seterr(invalid='ignore') #Don't report divide by zero warning
     
     #First, get the model parameters
     if model_params is None:
@@ -495,7 +508,8 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
         inverse_regularization_strength = 1 
         solver='liblinear'
         fit_intercept = True
-        model_params = {'penalty': penalty, 'inverse_regularization_strength': inverse_regularization_strength, 'solver': solver}
+        normalize = True
+        model_params = {'penalty': penalty, 'inverse_regularization_strength': inverse_regularization_strength, 'solver': solver, 'normalize': normalize}
         #Re-create the model_params to store the defaults 
         
     elif model_params is not None:
@@ -503,6 +517,7 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
         inverse_regularization_strength = model_params['inverse_regularization_strength']
         solver = model_params['solver']
         fit_intercept = model_params['fit_intercept']
+        normalize = model_params['normalize']
         # Mysteriously this loop does not work inside the function
         # for key,val in model_params.items():
         #     exec(key + '=val')
@@ -523,7 +538,31 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
     for n in range(k_folds):
         train_index, test_index = k_fold_generator.__next__() #This is how the generator has to be called if not directly looped over
         X_train, X_test = data[train_index], data[test_index]
+        
+        if normalize:
+            #Estimate mean and std on training sample and normalize both samples by these
+            sample_mean = np.mean(X_train, axis=0)
+            sample_std = np.std(X_train, axis=0)
+            sample_std[sample_std==0] = 1 #When nothing changes don't divide, this will then set all the values to 0
+            X_train = (X_train - sample_mean) / sample_std
+            X_test = (X_test - sample_mean) / sample_std
+     
         y_train, y_test = labels[train_index], labels[test_index]
+        
+        #A short cut here: Estimate the best regularization on the first fold only
+        if n == 0:
+            if isinstance(model_params['inverse_regularization_strength'], list) | isinstance(model_params['inverse_regularization_strength'], np.ndarray):
+                accuracy = []
+                for reg in inverse_regularization_strength:
+                    log_reg = LogisticRegression(penalty = penalty, C = reg, solver = solver, fit_intercept = fit_intercept).fit(X_train,y_train)
+                    accuracy.append(log_reg.score(X_test, y_test))
+                accuracy = np.array(accuracy)
+                idx = np.where(accuracy == np.max(accuracy))[0][0]
+                # if idx.shape[0] > 1: #When more than one reg yield perfect performance...
+                #     idx = idx[0]
+                inverse_regularization_strength = model_params['inverse_regularization_strength'][idx]       
+                
+        #Fit the actual models now        
         y_train_shuffled = np.random.permutation(y_train) #Shuffle the labels of the training data for the control
         #The actual model
         log_reg = LogisticRegression(penalty = penalty, C = inverse_regularization_strength, solver = solver, fit_intercept = fit_intercept).fit(X_train,y_train)
@@ -532,22 +571,27 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
         
         models['model_accuracy'][n] = log_reg.score(X_test, y_test)
         models['model_coefficients'][n] = log_reg.coef_
-        models['model_intercept'][n] = log_reg.intercept_[0]
+        if fit_intercept:
+            models['model_intercept'][n] = log_reg.intercept_[0] #Returns an array in this case
+            models['shuffle_intercept'][n] = log_reg_shuffled.intercept_[0]
+        else:
+            models['model_intercept'][n] = log_reg.intercept_
+            models['shuffle_intercept'][n] = log_reg_shuffled.intercept_
         models['model_n_iter'][n] = log_reg.n_iter_[0]
         
         models['shuffle_accuracy'][n] = log_reg_shuffled.score(X_test, y_test)
         models['shuffle_coefficients'][n] = log_reg_shuffled.coef_
-        models['shuffle_intercept'][n] = log_reg_shuffled.intercept_[0]
+      
         models['shuffle_n_iter'][n] = log_reg_shuffled.n_iter_[0]
 
-        models['parameters'][n] = model_params
+        models['parameters'][n] = {'penalty': penalty, 'inverse_regularization_strength': inverse_regularization_strength, 'solver': solver}
         models['fold_number'][n] = n
         models['number_of_samples'][n]= X_train.shape[0]
     
     return models
 
 #%%---Pipeline for training a set of balanced models with multiple rounds of subsampling
-def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, secondary_labels, model_params):
+def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, secondary_labels, model_params, balancing_mode = 'proportional'):
     '''Pipeline for training a set of logistic regression models and performing
     shuffles on data that has to be balanced. The models are fit for a set 
     amount of repetitions of the subsampling procedure used to balance the class
@@ -594,7 +638,7 @@ def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, 
     log_reg_models = pd.DataFrame()
     
     for s in range(subsampling_rounds):
-        pick_to_balance, _ = balance_dataset(labels, secondary_labels) #If the secondary label is None it will not be considered        
+        pick_to_balance, _ = balance_dataset(labels, secondary_labels, balancing_mode) #If the secondary label is None it will not be considered        
         models = train_logistic_regression(data[pick_to_balance,:], labels[pick_to_balance], k_folds, model_params)
         
         models['pick_to_balance'] = [pick_to_balance] * models.shape[0]

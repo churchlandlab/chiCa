@@ -389,9 +389,9 @@ def align_behavioral_video(camlog_file):
     onsets, offsets = unpackbits(logdata['var2']) #The channel log is always unnamed and thus receives the key var2
     for k in onsets.keys():
         if onsets[k].shape[0] == trial_num + 1: # In most cases an unfinished trial will already have been started
-            trial_start_video_frames = onsets[k][0 : trial_num]
+            trial_start_video_frames = onsets[k][0 : trial_num] + 1 #Onsets seems to pick the frame identity just before the real frame, as validated by checking the videos.
         elif onsets[k].shape[0] == trial_num: # Sometimes the acquisition stops just after the end of the trial before the beginning of the next one
-            trial_start_video_frames = onsets[k]
+            trial_start_video_frames = onsets[k] + 1
             
     if not 'trial_start_video_frames' in locals():
         raise ValueError('In none of the camera channels the onset number matched the trial number. Please check the log files and camera setup.')
