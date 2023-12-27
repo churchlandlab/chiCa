@@ -525,7 +525,8 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
     #Set up the dataframe to store the training outputs 
     models = pd.DataFrame(columns=['model_accuracy', 'model_coefficients', 'model_intercept', 'model_n_iter', 
                                    'shuffle_accuracy', 'shuffle_coefficients', 'shuffle_intercept', 'shuffle_n_iter',
-                                   'parameters', 'fold_number','number_of_samples'],
+                                   'parameters', 'fold_number','number_of_samples', 'test_index',
+                                   'model_prediction_logodds', 'shuffle_prediction_logodds'],
                           index=range(0, k_folds))
             
     skf = StratifiedKFold(n_splits = k_folds, shuffle = True) #Use stratified cross-validation to make sure 
@@ -571,22 +572,26 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
         
         models['model_accuracy'][n] = log_reg.score(X_test, y_test)
         models['model_coefficients'][n] = log_reg.coef_
+        models['model_prediction_logodds'][n] = log_reg.decision_function(X_test)
         if fit_intercept:
             models['model_intercept'][n] = log_reg.intercept_[0] #Returns an array in this case
             models['shuffle_intercept'][n] = log_reg_shuffled.intercept_[0]
         else:
             models['model_intercept'][n] = log_reg.intercept_
             models['shuffle_intercept'][n] = log_reg_shuffled.intercept_
+            
         models['model_n_iter'][n] = log_reg.n_iter_[0]
         
         models['shuffle_accuracy'][n] = log_reg_shuffled.score(X_test, y_test)
         models['shuffle_coefficients'][n] = log_reg_shuffled.coef_
+        models['shuffle_prediction_logodds'][n] = log_reg_shuffled.decision_function(X_test)
       
         models['shuffle_n_iter'][n] = log_reg_shuffled.n_iter_[0]
 
         models['parameters'][n] = {'penalty': penalty, 'inverse_regularization_strength': inverse_regularization_strength, 'solver': solver}
         models['fold_number'][n] = n
         models['number_of_samples'][n]= X_train.shape[0]
+        models['test_index'][n] = test_index
     
     return models
 
