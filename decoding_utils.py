@@ -464,6 +464,162 @@ def balance_dataset(labels, secondary_labels = None, mode = 'proportional'):
 
     return pick_to_balance, sample_num
 
+#%%-----------Draw
+def balance_dataset_cover_all(labels, secondary_labels = None, mode = 'proportional', number_of_draws = 20):
+    '''Balance the number of observaitions for each class in the dataset by
+    subsampling from the majority classes while retaining all observations of 
+    the minority class. This function offers the option to balance for two
+    types of classes. When this is desired the proportion of subclass labels
+    will be matched for the different classes. There can be an arbitratry number
+    of secondary classes as long as they describe non-independent subclasses.
+    For example one can balance for previous choices and outcomes in the labels by constructing
+    secondary labels as: previous_choice == 0 & previous_outcome == 0 = 0, 
+    previous_choice == 0 & previous_outcome == 1 = 1,
+    previous_choice == 1 & previous_outcome == 0 = 2,
+    previous_choice == 1 & previous_outcome == 1 = 3.
+    In this way they span the entire dataset and represent non-independent conditions.
+    The mode controls whether the secondary classes should either be sampled with
+    fixed proportions between the two main class labels (proportional, default)
+    or whether to take equal numbers of samples from all subclasses (equal).
+    This function differs from balance_dataset in that it generates a number of
+    draws and ensures that all the data are actually sampled at least once. 
+    
+    
+    Parameters
+    ----------
+    labels: numpy array, vector of the class labels of the data. Nans will be
+           ignored.
+    secondary_labels: numpy array, vector of additional class labels, default = None
+    mode: string, could either be proportional, so that the secondary label proportions
+          are kept constant between the primary labels.The other option is equal
+          where all secondary labels occur with equal proportion inside the 
+          primary labels.
+    number_of_draws: int, how many rounds of subsampling should be used
+    
+    Returns
+    -------
+    pick_to_balance: list of numpy arrays, vector of indices for samples to be icluded
+                     to obtain a balanced dataset, one list element per draw
+    sample_num = list of int, the number of samples per label. This means that
+                 for binary classification pick_to_balance.shape[0] == 2*sample_num.
+                     
+    Examples
+    --------
+    pick_to_balance, sample_num = balance_dataset(labels, secondary_labels, mode = 'proportional', number_of_draws = 20) #Balance by the two variables
+    pick_to_balance, sample_num = balance_dataset(labels) #Balance for classes in label only
+    '''
+    
+    import numpy as np
+    
+    #-----Define a function to iteratively pick samples covering all indices
+    def pick_and_refresh_sample(permuted_indices, pick_number, num_removed):
+        '''Function to iteratively pick sets of shuffled indices. This function eliminates
+        indices that have already been picked and restarts with a fresh permutation after
+        all the indices have been selected once.
+        '''
+        use_up_to = num_removed + pick_number
+        
+        if use_up_to > permuted_indices.shape[0]: #This is the case when there are no more unpicked samples for this round
+            pick_samples = permuted_indices[num_removed:] #Use all the remaining samples 
+            use_up_to = use_up_to - permuted_indices.shape[0] #Determine how many more samples are required from a freshly permuted set of yet unselected indices
+            remainder_sample = np.random.permutation(permuted_indices[:num_removed]) #Permute the unchosen indices
+            pick_samples = np.hstack((pick_samples, remainder_sample[:use_up_to])) #Add the newly chosen indices the already picked ones
+            
+            #After completing the full set start with a fresh round where all the indices are available again
+            permuted_indices = np.random.permutation(permuted_indices)
+            num_removed = 0
+            
+        else: #This is when there are enough samples that have not yet been picked 
+            pick_samples = permuted_indices[num_removed : use_up_to]
+            num_removed = use_up_to
+            
+        return pick_samples, num_removed, permuted_indices
+    
+    #---------------------------------
+    classes = np.unique(labels)
+    classes = classes[np.isnan(classes)==0] #Determine the classes in the labels and exclude nans
+    
+    if secondary_labels is None:    
+        class_counts = np.array([np.sum(labels==classes[n]) for n in range(classes.shape[0])])
+        #Convoluted code: sum up all the labels falling under one class for the two different classes
+        pick_number = int(np.min(class_counts)) #Define how many sample per class to retain
+        
+        assert np.max(class_counts/pick_number) < number_of_draws, f"Please request at least {round(np.ceil(np.max(class_counts)/pick_number))} draws to cover all the labels."         
+        
+        class_indices = [np.where(labels==classes[n])[0] for n in range(classes.shape[0])] #Get the indices where the labels belong to each class
+        for k in range(class_indices): #Permute the indices here to start
+            class_indices[k] = np.random.permutation(class_indices[k])
+        
+        #Start assembling the indices for balancing the classes
+        pick_to_balance = []
+        num_removed = [0] * classes.shape[0] #Track eliminated samples
+        for draw in range(number_of_draws):
+            tmp = []
+            for cl in range(classes.shape[0]):
+                pick_samples, num_removed[cl], class_indices[cl] = pick_and_refresh_sample(class_indices[cl], pick_number, num_removed[cl])
+                tmp.append(pick_samples)
+            pick_to_balance.append(np.hstack(tmp))
+            
+        sample_num = pick_number #In this case the number of samples for each primary class
+        #is just the same as the number picked from every class. However, when secondary
+        #labels are introduced this is not the case anymore because the samples are now drawn from
+        #instances of any given primary and secondary label.
+                
+    elif secondary_labels is not None:
+        #If one needs to balance a subclass inside the labels do the same thing again
+        subclasses = np.unique(secondary_labels)
+        subclasses = subclasses[np.isnan(subclasses)==0] #Determine the classes in the labels and exclude nans    
+    
+        #Generate contingency table of dimensions classes x secondary_classes
+        cont_table = np.zeros([classes.shape[0], subclasses.shape[0]])
+        for k in range(subclasses.shape[0]):
+            cont_table[0,k] = np.sum(secondary_labels[labels==0]==subclasses[k])
+            cont_table[1,k] = np.sum(secondary_labels[labels==1]==subclasses[k])
+     
+        #Find column minima, these are the minimum amount of samples of a specific secondary class between the classes
+        if mode == 'proportional':
+            col_min = np.min(cont_table, axis=0).astype(int)
+        elif mode == 'equal':
+            col_min = np.tile(np.min(cont_table).astype(int), cont_table.shape[1])
+        #Here the column minima are going to determine the pick_number       
+        
+        assert np.max(cont_table / col_min) < number_of_draws, f"Please request at least {round(np.ceil(np.max(cont_table / col_min)))} draws to cover all the labels." 
+        
+        class_indices = [[np.nan] * subclasses.shape[0] for k in range(classes.shape[0])] #Initialize a list with sublist to hold the indices of the label x secondary label combinations
+        #NOTE: This is the correct way to initialize nested lists if one wants to
+        #retain each list as an independently changable object!
+        
+        for prim in range(cont_table.shape[0]):
+            for sec in range(cont_table.shape[1]):
+                class_indices[prim][sec] = np.where((labels == classes[prim]) & (secondary_labels == subclasses[sec]))[0]
+          
+        #Apply permutation to the retrieved indices (could also be done above but it might be helpful to keep this separate for troubleshooting)
+        for prim in range(cont_table.shape[0]):
+            for sec in range(cont_table.shape[1]):
+                class_indices[prim][sec] = np.random.permutation(class_indices[prim][sec])
+        
+        #Start assembling the indices for balancing the classes
+        pick_to_balance = []
+        num_removed =  [[0] * subclasses.shape[0] for k in range(classes.shape[0])] #Track eliminated samples
+        for draw in range(number_of_draws):
+            tmp = []
+            for prim in range(classes.shape[0]):
+                for sec in range(subclasses.shape[0]):
+                    pick_samples, num_removed[prim][sec], class_indices[prim][sec] = pick_and_refresh_sample(class_indices[prim][sec], col_min[sec], num_removed[prim][sec])
+                    tmp.append(pick_samples)
+            pick_to_balance.append(np.hstack(tmp))
+                
+        sample_num = np.sum(col_min).astype(int) #Sum over the minima to find the number of samples per class
+        #If the secondary labels are relatively similraly distributed in the different classes this will
+        #result in the number of samples often being identical with the number of observations of the minmum class.
+        #Otherwise the number will be smaller
+
+    return pick_to_balance, sample_num
+
+
+
+
+
 #%%--------Train cross-validated logistic regression model
 def train_logistic_regression(data, labels, k_folds, model_params=None):
     '''Train regularized, corss-validated logistic regression models and perform
@@ -596,7 +752,7 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
     return models
 
 #%%---Pipeline for training a set of balanced models with multiple rounds of subsampling
-def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, secondary_labels, model_params, balancing_mode = 'proportional'):
+def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, secondary_labels, model_params, balancing_mode = 'proportional', cover_all_samples = True):
     '''Pipeline for training a set of logistic regression models and performing
     shuffles on data that has to be balanced. The models are fit for a set 
     amount of repetitions of the subsampling procedure used to balance the class
@@ -612,7 +768,15 @@ def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, 
     secondary_lables: numpy array, vector of additional class labels
     model_params: dict, specifies model parameters. The keys are: penalty 
                   (the type of regularization to be applied),
-                  inverse_regularization_strength, solver 
+                  inverse_regularization_strength, solver
+    balancing_mode: string, to sample equally from all the different secondary 
+                    classes (equal) or by simply balancing the primary labels
+                    for all subclasses (proportional).
+    cover_all_samples: bool, flag to use 'balance_dataset_cover_all'. If set to
+                       true then the balancing function will systematically draw
+                       samples until it every sample has been drawn at least once
+                       and it will throw an error informing the user how many draws
+                       are necessary to sample the entire dataset.
                   
     Returns
     -------
@@ -620,7 +784,7 @@ def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, 
     
     Examples
     --------
-    log_reg_models = balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, secondary_labels = secondary_labels, model_params = model_params)
+    log_reg_models = balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, secondary_labels = secondary_labels, model_params = model_params, balancing_mode = 'proportional', cover_all_samples = True)
     log_reg_models = balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds)
     
     '''
@@ -642,11 +806,20 @@ def balanced_logistic_model_training(data, labels, k_folds, subsampling_rounds, 
     
     log_reg_models = pd.DataFrame()
     
-    for s in range(subsampling_rounds):
-        pick_to_balance, _ = balance_dataset(labels, secondary_labels, balancing_mode) #If the secondary label is None it will not be considered        
-        models = train_logistic_regression(data[pick_to_balance,:], labels[pick_to_balance], k_folds, model_params)
+    if cover_all_samples:
+       pick_to_balance, _ = balance_dataset_cover_all(labels, secondary_labels, balancing_mode, number_of_draws = subsampling_rounds)
+    else:
+        pick_to_balance = []
+        for k in range(subsampling_rounds):
+            tmp, _ = balance_dataset(labels, secondary_labels, balancing_mode)
+            pick_to_balance.append(tmp)
+    
         
-        models['pick_to_balance'] = [pick_to_balance] * models.shape[0]
+    for s in range(subsampling_rounds):
+        # pick_to_balance, _ = balance_dataset(labels, secondary_labels, balancing_mode) #If the secondary label is None it will not be considered        
+        models = train_logistic_regression(data[pick_to_balance[s],:], labels[pick_to_balance[s]], k_folds, model_params)
+        
+        models['pick_to_balance'] = [pick_to_balance[s]] * models.shape[0]
         models['subsampling_round'] = np.ones(models.shape[0]) * s #Add a column with the run of subsampling performed
         log_reg_models = pd.concat([log_reg_models, models])
     
