@@ -547,7 +547,7 @@ def balance_dataset_cover_all(labels, secondary_labels = None, mode = 'proportio
         assert np.max(class_counts/pick_number) < number_of_draws, f"Please request at least {round(np.ceil(np.max(class_counts)/pick_number))} draws to cover all the labels."         
         
         class_indices = [np.where(labels==classes[n])[0] for n in range(classes.shape[0])] #Get the indices where the labels belong to each class
-        for k in range(class_indices): #Permute the indices here to start
+        for k in range(len(class_indices)): #Permute the indices here to start
             class_indices[k] = np.random.permutation(class_indices[k])
         
         #Start assembling the indices for balancing the classes

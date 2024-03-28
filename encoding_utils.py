@@ -525,18 +525,19 @@ def fit_encoding_model_shuffles(X, Y, shuffle_indices, standardize_variables, tr
         y_train = (y_data - y_mean) / y_std
         y_test = (Y[testing[fold],:] - y_mean) / y_std
         
-        x_data = x_shuffle[training[fold],:]
-        x_std_analog = np.std(x_data[:,standardize_variables], axis=0) 
-        x_mean_analog = np.mean(x_data[:,standardize_variables], axis=0)
-        #The reason this is named analog here is that, although one can standardize
-        #dummy variables and kernel regressors, the interpretation of these 
-        #standardized variables becomes difficult and so I chose to only z-score
-        #the analog regressors.
+        x_train = np.array(x_shuffle[training[fold],:]) #Let's make sure this is a new independent array
+        x_test = np.array(x_shuffle[testing[fold]])
+        if standardize_variables.shape[0] > 0: #Use the mean and std of the training set to scale the test set
+            x_std_analog = np.std(x_train[:,standardize_variables], axis=0) 
+            assert np.sum(np.isnan(x_std_analog)) == 0, f"Column(s) {standardize_variables[np.where(np.isnan(x_std_analog))[0]]} of the desing matrix have zero standard deviation."
+            x_mean_analog = np.mean(x_train[:,standardize_variables], axis=0)
+            #The reason this is named analog here is that, although one can standardize
+            #dummy variables and kernel regressors, the interpretation of these 
+            #standardized variables becomes difficult and so I chose to only z-score
+            #the analog regressors. 
         
-        x_train = x_data
-        x_train[:,standardize_variables] = (x_data[:,standardize_variables] - x_mean_analog) / x_std_analog
-        x_test = x_shuffle[testing[fold]]
-        x_test[:,standardize_variables] = (x_test[:,standardize_variables] - x_mean_analog) / x_std_analog
+            x_train[:,standardize_variables] = (x_train[:,standardize_variables] - x_mean_analog) / x_std_analog
+            x_test[:,standardize_variables] = (x_test[:,standardize_variables] - x_mean_analog) / x_std_analog
         
         if fold == 0: #Estiate the regularization strength on the first round
             alphas, t_betas = ridge_MML(y_train, x_train, regress=True)

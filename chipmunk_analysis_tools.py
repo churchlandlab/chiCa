@@ -256,6 +256,240 @@ def pick_files(file_extension='*'):
     ###########################################################################
     
 #%%
+def load_trialdata(file_name):
+    '''Read the behavioral data from .mat or .obsmat and return a
+    pandas data frame with the respective data for each trial
+    
+    Parameters
+    ----------
+    file_name: string, path to a chipmunk .mat or .obsmat file
+
+    
+    Returns
+    -------
+    trialdata: pandas data frame, data about the timing of states and events, choices and outcomes etc.
+    
+    Examples
+    --------
+    trial_data = load_trialdata(file_name)
+    '''
+    
+    import os 
+    import pandas as pd
+    from scipy.io import loadmat
+    import numpy as np
+    import warnings
+
+    #---Start the loading
+    try:
+        
+        #---------Do all the loading and conversion here
+        sesdata = loadmat(file_name, squeeze_me=True,
+                              struct_as_record=True)['SessionData']
+    
+        tmp = sesdata['RawEvents'].tolist()
+        tmp = tmp['Trial'].tolist()
+        uevents = np.unique(np.hstack([t['Events'].tolist().dtype.names for t in tmp])) #Make sure not to duplicate state definitions
+        ustates = np.unique(np.hstack([t['States'].tolist().dtype.names for t in tmp]))
+        trialevents = []
+        trialstates = [] #Extract all trial states and events
+        for t in tmp:
+             a = {u: np.array([np.nan]) for u in uevents}
+             s = t['Events'].tolist()
+             for b in s.dtype.names:
+                 if isinstance(s[b].tolist(), float) or isinstance(s[b].tolist(), int): 
+                     #Make sure to include single values as an array with a dimension
+                     #Arrgh, in the unusual case that a value is an int this should also apply!
+                     a[b] = np.array([s[b].tolist()])
+                 else:
+                        a[b] = s[b].tolist()
+             trialevents.append(a)
+             a = {u:None for u in ustates}
+             s = t['States'].tolist()
+             for b in s.dtype.names:
+                     a[b] = s[b].tolist()
+             trialstates.append(a)
+        trialstates = pd.DataFrame(trialstates)
+        trialevents = pd.DataFrame(trialevents)
+        trialdata = pd.merge(trialevents,trialstates,left_index=True, right_index=True)
+        
+        # Insert a column for DemonWrongChoice in trialda if necessary
+        if 'DemonWrongChoice' not in trialdata.columns:
+            trialdata.insert(trialdata.shape[1], 'DemonWrongChoice', [np.array([np.nan, np.nan])] * trialdata.shape[0])
+        
+        
+        #Add response and stimulus train related information: correct side, rate, event occurence time stamps
+        trialdata.insert(trialdata.shape[1], 'response_side', sesdata['ResponseSide'].tolist())
+        trialdata.insert(trialdata.shape[1], 'correct_side', sesdata['CorrectSide'].tolist())
+        
+        #Get stim modality
+        tmp_modality_numeric = sesdata['Modality'].tolist()
+        temp_modality = []
+        for t in tmp_modality_numeric:
+            if t == 1:
+                temp_modality.append('visual')
+            elif t == 2: 
+                temp_modality.append('auditory')
+            elif t == 3:
+                temp_modality.append('audio-visual')
+            else: 
+                temp_modality.append(np.nan)
+                print('Could not determine modality and set value to nan')
+                
+        trialdata.insert(trialdata.shape[1], 'stimulus_modality', temp_modality)
+        
+        #Reconstruct the time stamps for the individual stimuli
+        event_times = []
+        event_duration = sesdata['StimulusDuration'].tolist()[0]
+        for t in range(trialdata.shape[0]):
+            if tmp_modality_numeric[t] < 3: #Unisensory
+                temp_isi = sesdata['InterStimulusIntervalList'].tolist().tolist()[t][tmp_modality_numeric[t]-1]
+                #Index into the corresponding trial and find the isi for the corresponding modality
+            else:
+                temp_isi = sesdata['InterStimulusIntervalList'].tolist().tolist()[t][0]
+                #For now assume synchronous and only look at visual stims
+                warnings.warn('Found multisensory trials, assumed synchronous condition')
+            
+            temp_trial_event_times = [temp_isi[0]] 
+            for k in range(1,temp_isi.shape[0]-1): #Start at 1 because the first Isi is already the timestamp after the play stimulus
+                temp_trial_event_times.append(temp_trial_event_times[k-1] + event_duration + temp_isi[k])
+        
+            event_times.append(temp_trial_event_times + trialdata['PlayStimulus'][t][0]) #Add the timestamp for play stimulus to the event time
+        
+        trialdata.insert(trialdata.shape[1], 'stimulus_event_timestamps', event_times)
+        
+        #Insert the outcome record for faster access to the different trial outcomes
+        trialdata.insert(0, 'outcome_record', sesdata['OutcomeRecord'].tolist())
+        
+        try: 
+            tmp = sesdata['TrialDelays'].tolist()
+            for key in tmp[0].dtype.fields.keys(): #Find all the keys and extract the data associated with them
+                tmp_delay = tmp[key].tolist()
+                trialdata.insert(trialdata.shape[1], key , tmp_delay)
+        except:
+            print('For this version of chipmunk the task delays struct was not implemented yet.\nDid not generate the respective columns in the data frame.')
+            
+        tmp = sesdata['ActualWaitTime'].tolist()
+        trialdata.insert(trialdata.shape[1], 'actual_wait_time' , tmp)
+        #TEMPORARY: import the demonstrator and observer id
+        tmp = sesdata['TrialSettings'].tolist()
+        trialdata.insert(trialdata.shape[1], 'demonstrator_ID' , tmp['demonID'].tolist())
+        
+        #Add a generic state tracking the timing of outcome presentation, this is also a 1d array of two elements
+        outcome_timing = []
+        for k in range(trialdata.shape[0]):
+            if np.isnan(trialdata['DemonReward'][k][0]) == 0:
+                outcome_timing.append(np.array([trialdata['DemonReward'][k][0], trialdata['DemonReward'][k][0]]))
+            elif np.isnan(trialdata['DemonWrongChoice'][k][0]) == 0:
+                outcome_timing.append(np.array([trialdata['DemonWrongChoice'][k][0],trialdata['DemonWrongChoice'][k][0]]))
+            else:
+                outcome_timing.append(np.array([np.nan, np.nan]))
+        trialdata.insert(trialdata.shape[1], 'outcome_presentation', outcome_timing)
+        
+        # Retrieve the flag for revised choices
+        trialdata.insert(trialdata.shape[1], 'revise_choice_flag', np.ones(trialdata.shape[0], dtype = bool) * sesdata['ReviseChoiceFlag'].tolist())
+        
+        #Get the Bpod timestamps for the start of each new trial
+        trialdata.insert(trialdata.shape[1], 'trial_start_time' , sesdata['TrialStartTimestamp'].tolist())
+        
+        #----Get the timestamp of when the mouse gets out of the response poke
+        #Here, a minimum poke duration of 100 ms is a requirement. Coming out
+        #of the response port after less than 100 ms is not considered a retraction
+        #an will be ignored and the next Poke out event will be counted.
+        #Note: The timestamps are always calculated with respect to the 
+        #start of the trial during which the response happened, even if the 
+        #mouse only retracted on the next trial (usually when rewarded!)
+        #Also note that there is always a < 100 ms period where Bpod does
+        #not run a state machine and thus doesn't log events. It is possible that 
+        #that retraction events might be missed because of this interruption.
+        #These missed events will be nan.
+        response_port_out = []
+        for k in range(trialdata.shape[0]):
+            event_name = None
+            if trialdata['response_side'][k] == 0:
+                event_name = 'Port1Out'
+            elif trialdata['response_side'][k] == 1:
+                event_name = 'Port3Out'
+            
+            poke_ev = None
+            if event_name is not None:
+                #First check current trial
+                add_past_trial_time = 0 #Time to be added if the retrieval only happens in the following trial
+                tmp = trialdata[event_name][k][trialdata[event_name][k] > trialdata['outcome_presentation'][k][0]]
+                
+                #Now sometimes the mice retract very fast, faster than the normal reaction time
+                #skip these events in this case and consider the next one
+                candidates = tmp.shape[0]
+                looper = 0
+                while (poke_ev is None) & (looper < candidates):
+                    tmptmp = tmp[looper]
+                    if tmptmp - trialdata['outcome_presentation'][k][0] > 0.1:
+                        poke_ev = tmptmp
+                    looper = looper + 1
+                
+                if poke_ev is None: #Did not find a poke out event that fullfills the criteria
+                    if k < (trialdata.shape[0] - 1): # Stop from checking at the very end...
+                        tmp = trialdata[event_name][k+1][trialdata[event_name][k+1] < trialdata['Port2In'][k+1][0]]
+                        #Check all the candidate events at the beginning of the next trial but before center fixation.
+                        add_past_trial_time = trialdata['trial_start_time'][k+1] - trialdata['trial_start_time'][k]
+                        if tmp.shape[0] > 0:
+                            poke_ev = np.min(tmp) #These would actually come sorted already...
+            if poke_ev is not None:          
+                response_port_out.append(np.array([poke_ev + add_past_trial_time, poke_ev + add_past_trial_time]))
+            else:
+                response_port_out.append(np.array([np.nan, np.nan]))
+
+        trialdata.insert(trialdata.shape[1], 'response_port_out', response_port_out)
+        
+        
+        if 'ObsOutcomeRecord' in sesdata.dtype.fields:
+            trialdata.insert(1, 'observer_outcome_record', sesdata['ObsOutcomeRecord'].tolist())
+            tmp = sesdata['ObsActualWaitTime'].tolist()
+            trialdata.insert(trialdata.shape[1], 'observer_actual_wait_time' , tmp)
+            tmp = sesdata['TrialSettings'].tolist()
+            trialdata.insert(trialdata.shape[1], 'dobserver_ID' , tmp['obsID'].tolist())
+        
+    except:
+        warnings.warn(f"CUATON: An error occured and {current_file} could not be converted")
+        
+    return trialdata
+
+   ###################################################################################################             
+#%%
+
+def pick_files(file_extension='*'):
+    ''' Simple file selection function for quick selections.
+    
+    Parameters
+    ----------
+    file_extension: str, file extension specifier, for example *.mat
+    
+    Returns
+    -------
+    file_names: list, list of file names selected
+    
+    Examples
+    --------
+    file_names = pick_files('*.mat')
+    '''
+    
+    from tkinter import Tk #For interactive selection, this part is only used to withdraw() the little selection window once the selection is done.
+    import tkinter.filedialog as filedialog
+       
+    specifier = [(file_extension, file_extension)] #Prepare for the filedialog gui
+    
+    # Select the session directory
+    Tk().withdraw() #Don't show the tiny confirmation window
+    file_names = list(filedialog.askopenfilenames(filetypes = specifier))
+    
+    return file_names
+
+    ###########################################################################
+    
+
+    
+    
+#%%
 
 def pick_files_multi_session(data_type, file_extension, file_keyword = None):
     '''Tool to select specified files of a data type over a user selected set of sessions.
