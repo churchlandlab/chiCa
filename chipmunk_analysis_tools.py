@@ -224,36 +224,6 @@ def convert_specified_behavior_sessions(file_names, overwrite = False):
     return converted_files
 
    ###################################################################################################             
-#%%
-
-def pick_files(file_extension='*'):
-    ''' Simple file selection function for quick selections.
-    
-    Parameters
-    ----------
-    file_extension: str, file extension specifier, for example *.mat
-    
-    Returns
-    -------
-    file_names: list, list of file names selected
-    
-    Examples
-    --------
-    file_names = pick_files('*.mat')
-    '''
-    
-    from tkinter import Tk #For interactive selection, this part is only used to withdraw() the little selection window once the selection is done.
-    import tkinter.filedialog as filedialog
-       
-    specifier = [(file_extension, file_extension)] #Prepare for the filedialog gui
-    
-    # Select the session directory
-    Tk().withdraw() #Don't show the tiny confirmation window
-    file_names = list(filedialog.askopenfilenames(filetypes = specifier))
-    
-    return file_names
-
-    ###########################################################################
     
 #%%
 def load_trialdata(file_name):
@@ -450,11 +420,147 @@ def load_trialdata(file_name):
             trialdata.insert(trialdata.shape[1], 'dobserver_ID' , tmp['obsID'].tolist())
         
     except:
-        warnings.warn(f"CUATON: An error occured and {current_file} could not be converted")
+        warnings.warn(f"CUATON: An error occured and {file_name} could not be loaded")
         
     return trialdata
 
-   ###################################################################################################             
+   ################################################################################################### 
+#%%
+def load_SpatialSparrow(file_name):
+    '''Read the SpatialSparrow data from .mat or and return a
+    pandas data frame with the respective data for each trial so that it is similar to the chipmunk data
+    
+    Parameters
+    ----------
+    file_name: string, path to a chipmunk .mat or .obsmat file
+
+    
+    Returns
+    -------
+    trialdata: pandas data frame, data about the timing of states and events, choices and outcomes etc.
+    
+    Examples
+    --------
+    trial_data = load_SpatialSparrow(file_name)
+    '''
+    
+    import os 
+    import pandas as pd
+    from scipy.io import loadmat
+    import numpy as np
+    import warnings
+
+    #---Start the loading
+    try:
+        
+        #---------Do all the loading and conversion here
+        sesdata = loadmat(file_name, squeeze_me=True,
+                              struct_as_record=True)['SessionData']
+    
+        tmp = sesdata['RawEvents'].tolist()
+        tmp = tmp['Trial'].tolist()
+        uevents = np.unique(np.hstack([t['Events'].tolist().dtype.names for t in tmp])) #Make sure not to duplicate state definitions
+        ustates = np.unique(np.hstack([t['States'].tolist().dtype.names for t in tmp]))
+        trialevents = []
+        trialstates = [] #Extract all trial states and events
+        for t in tmp:
+             a = {u: np.array([np.nan]) for u in uevents}
+             s = t['Events'].tolist()
+             for b in s.dtype.names:
+                 if isinstance(s[b].tolist(), float) or isinstance(s[b].tolist(), int): 
+                     #Make sure to include single values as an array with a dimension
+                     #Arrgh, in the unusual case that a value is an int this should also apply!
+                     a[b] = np.array([s[b].tolist()])
+                 else:
+                        a[b] = s[b].tolist()
+             trialevents.append(a)
+             a = {u:None for u in ustates}
+             s = t['States'].tolist()
+             for b in s.dtype.names:
+                     a[b] = s[b].tolist()
+             trialstates.append(a)
+        trialstates = pd.DataFrame(trialstates)
+        trialevents = pd.DataFrame(trialevents)
+        trialdata = pd.merge(trialevents,trialstates,left_index=True, right_index=True)
+        
+        #Add response and stimulus train related information: correct side, rate, event occurence time stamps
+        trialdata.insert(trialdata.shape[1], 'response_side', sesdata['ResponseSide'].tolist())
+        trialdata.insert(trialdata.shape[1], 'correct_side', sesdata['CorrectSide'].tolist())
+        
+        #Get stim modality
+        tmp_modality_numeric = sesdata['Modality'].tolist()
+        temp_modality = []
+        for t in tmp_modality_numeric:
+            if t == 1:
+                temp_modality.append('visual')
+            elif t == 2: 
+                temp_modality.append('auditory')
+            elif t == 3:
+                temp_modality.append('audio-visual')
+            else: 
+                temp_modality.append(np.nan)
+                print('Could not determine modality and set value to nan')
+                
+        trialdata.insert(trialdata.shape[1], 'stimulus_modality', temp_modality)
+        
+        #TODO: Include the stim timestamps
+        # #Reconstruct the time stamps for the individual stimuli
+        # event_times = []
+        # event_duration = sesdata['StimulusDuration'].tolist()[0]
+        # for t in range(trialdata.shape[0]):
+        #     if tmp_modality_numeric[t] < 3: #Unisensory
+        #         temp_isi = sesdata['InterStimulusIntervalList'].tolist().tolist()[t][tmp_modality_numeric[t]-1]
+        #         #Index into the corresponding trial and find the isi for the corresponding modality
+        #     else:
+        #         temp_isi = sesdata['InterStimulusIntervalList'].tolist().tolist()[t][0]
+        #         #For now assume synchronous and only look at visual stims
+        #         warnings.warn('Found multisensory trials, assumed synchronous condition')
+            
+        #     temp_trial_event_times = [temp_isi[0]] 
+        #     for k in range(1,temp_isi.shape[0]-1): #Start at 1 because the first Isi is already the timestamp after the play stimulus
+        #         temp_trial_event_times.append(temp_trial_event_times[k-1] + event_duration + temp_isi[k])
+        
+        #     event_times.append(temp_trial_event_times + trialdata['PlayStimulus'][t][0]) #Add the timestamp for play stimulus to the event time
+        
+        # trialdata.insert(trialdata.shape[1], 'stimulus_event_timestamps', event_times)
+        
+        #Insert the outcome record for faster access to the different trial outcomes
+        outcome_record = np.zeros([trialdata.shape[0]]) - 2 #Start with the not initiated case
+        outcome_record[(sesdata['DidNotLever'].tolist()==0) & (sesdata['Punished'].tolist()==1)] = 0 #When completed but punished
+        outcome_record[(sesdata['DidNotLever'].tolist()==0) & (sesdata['Rewarded'].tolist()==1)] = 1 #When completed and rewarded
+        outcome_record[(sesdata['DidNotLever'].tolist()==0) & (sesdata['DidNotChoose'].tolist()==1)] = 2 #When not completed
+        trialdata.insert(0, 'outcome_record', outcome_record)
+        trialdata.insert(0, 'assisted_trials', sesdata['Assisted'].tolist())
+        
+        
+        #Use preStim delay, wait time (the stimulus presentation length) and the iti here
+        trialdata.insert(trialdata.shape[1],'preStimDelay', sesdata['TrialSettings'].tolist()['preStimDelay'].tolist())
+        trialdata.insert(trialdata.shape[1],'waitTime', sesdata['TrialSettings'].tolist()['WaitingTime'].tolist())
+        trialdata.insert(trialdata.shape[1],'interTrialInterval', sesdata['ITIjitter'].tolist())
+            
+     
+        #Add a generic state tracking the timing of outcome presentation, this is also a 1d array of two elements
+        outcome_timing = []
+        for k in range(trialdata.shape[0]):
+            if np.isnan(trialdata['Reward'][k][0]) == 0:
+                outcome_timing.append(np.array([trialdata['Reward'][k][0], trialdata['Reward'][k][0]]))
+            elif np.isnan(trialdata['HardPunish'][k][0]) == 0:
+                outcome_timing.append(np.array([trialdata['HardPunish'][k][0],trialdata['HardPunish'][k][0]]))
+            else:
+                outcome_timing.append(np.array([np.nan, np.nan]))
+        trialdata.insert(trialdata.shape[1], 'outcome_presentation', outcome_timing)
+        
+        #Get the Bpod timestamps for the start of each new trial
+        trialdata.insert(trialdata.shape[1], 'trial_start_time' , sesdata['TrialStartTimestamp'].tolist())
+
+        
+        
+    except:
+        warnings.warn(f"CUATON: An error occured and {file_name} could not be loaded")
+        
+    return trialdata
+
+   ###################################################################################################                     
 #%%
 
 def pick_files(file_extension='*'):
