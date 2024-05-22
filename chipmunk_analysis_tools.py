@@ -488,7 +488,7 @@ def load_SpatialSparrow(file_name):
         trialdata.insert(trialdata.shape[1], 'correct_side', sesdata['CorrectSide'].tolist())
         
         #Get stim modality
-        tmp_modality_numeric = sesdata['Modality'].tolist()
+        tmp_modality_numeric = sesdata['StimType'].tolist()
         temp_modality = []
         for t in tmp_modality_numeric:
             if t == 1:
@@ -523,6 +523,8 @@ def load_SpatialSparrow(file_name):
         #     event_times.append(temp_trial_event_times + trialdata['PlayStimulus'][t][0]) #Add the timestamp for play stimulus to the event time
         
         # trialdata.insert(trialdata.shape[1], 'stimulus_event_timestamps', event_times)
+        tmp = sesdata['StimSideValues'].tolist().astype(int)
+        trialdata.insert(trialdata.shape[1], 'stimulus_strength', tmp[1,:] - tmp[0,:])
         
         #Insert the outcome record for faster access to the different trial outcomes
         outcome_record = np.zeros([trialdata.shape[0]]) - 2 #Start with the not initiated case
@@ -530,7 +532,7 @@ def load_SpatialSparrow(file_name):
         outcome_record[(sesdata['DidNotLever'].tolist()==0) & (sesdata['Rewarded'].tolist()==1)] = 1 #When completed and rewarded
         outcome_record[(sesdata['DidNotLever'].tolist()==0) & (sesdata['DidNotChoose'].tolist()==1)] = 2 #When not completed
         trialdata.insert(0, 'outcome_record', outcome_record)
-        trialdata.insert(0, 'assisted_trials', sesdata['Assisted'].tolist())
+        trialdata.insert(0, 'self_performed', sesdata['Assisted'].tolist())
         
         
         #Use preStim delay, wait time (the stimulus presentation length) and the iti here
