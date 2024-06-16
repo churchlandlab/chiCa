@@ -1,1 +1,7 @@
-#Install requirements are listed in the setup.py file. This one is TBD because one needs to specify the versions here and I'm not doing that right now
+#still need to add version numbers to make this robust
+scipy
+numpy
+opencv-python
+pandas
+matplotlib
+scikit-learn
