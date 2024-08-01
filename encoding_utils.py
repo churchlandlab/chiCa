@@ -675,3 +675,41 @@ def shift_regressor(regressor_trace, min_shift, max_shift):
 
 #------------------------------------------------------------------------------
 #%%
+
+def align_frames_miniscope_video(aligned_to, time_frame, trialdata, valid_trials, miniscope_data, video_alignment = None):
+    '''Retrieve synchronized timestamps of imaging and video data aligned to behavioral states'''
+    
+    import numpy as np
+    from chiCa import find_state_start_frame_imaging, match_video_to_imaging
+    
+    
+    tmp_imaging = []
+    tmp_video = []
+    for k in range(len(aligned_to)):
+       
+        tmp_im = []
+        tmp_vi = []
+        state_start_frame, state_time_covered = find_state_start_frame_imaging(aligned_to[k], trialdata, miniscope_data['frame_interval'], miniscope_data['trial_starts'], miniscope_data['trial_start_time_covered'])                                                                     
+        zero_frame = np.array(state_start_frame[valid_trials] + time_frame[k][0], dtype=int) #The firts frame to consider
+        
+        for add_to in np.arange(time_frame[k][1] - time_frame[k][0]):
+            tmp_im.append(zero_frame + add_to)
+            
+            matching_frames = []
+            if video_alignment is not None:
+                for q in range(zero_frame.shape[0]): #unfortunately need to loop through the trials, should be improved in the future...
+                      tmp = match_video_to_imaging(np.array([zero_frame[q] + add_to]), miniscope_data['trial_starts'][valid_trials[q]],
+                           miniscope_data['frame_interval'], video_alignment['trial_starts'][valid_trials[q]], video_alignment['frame_interval'])[0].astype(int)
+                      matching_frames.append(tmp)
+            tmp_vi.append(np.array(matching_frames))
+            
+        tmp_imaging.append(tmp_im)
+        tmp_video.append(tmp_vi)
+        
+    imaging_frames = np.sort(np.vstack(tmp_imaging).flatten()).astype(int)
+    video_frames = np.sort(np.vstack(tmp_video).flatten()).astype(int)
+    
+    return imaging_frames, video_frames
+   
+    
+    
