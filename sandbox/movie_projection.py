@@ -74,29 +74,56 @@ def motion_energy_video(movie_file):
     
     timer = time.time()
     sporadic_report = 0
-    # k = 0
-    for k in range(frame_number):
-    # while(True):
-        success, f = cap.read()
+    k = 0
+    if frame_number > 0:
+        for k in range(frame_number):
+        # while(True):
+            success, f = cap.read()
+            
+            if not success:
+                print(f'Something_happend at frame {k}. Check the movie!')
+                break
+            
+            frame = np.array(f[:,:,1], dtype=float) #The video is gray-scale, convert to float to be able to record negative values
+            
+            if previous_frame.shape[0] > 0:
+                motion_energy = np.abs(frame -previous_frame).astype(np.uint8)
+            else:
+                motion_energy = np.zeros([frame_dims[1], frame_dims[0]]).astype(np.uint8)
+            
+            wrt.write(np.stack((motion_energy, motion_energy, motion_energy), axis=2))
+            previous_frame = frame
+            
+            sporadic_report = sporadic_report + 1
+            if sporadic_report == 5000:
+                print(f'Wrote {k} frames to file.')
+                sporadic_report = 0
+            k = k+1   
+    else:
         
-        if not success:
-            print(f'Something_happend at frame {k}. Check the movie!')
-        
-        frame = np.array(f[:,:,1], dtype=float) #The video is gray-scale, convert to float to be able to record negative values
-        
-        if previous_frame.shape[0] > 0:
-            motion_energy = np.abs(frame -previous_frame).astype(np.uint8)
-        else:
-            motion_energy = np.zeros([frame_dims[1], frame_dims[0]]).astype(np.uint8)
-        
-        wrt.write(np.stack((motion_energy, motion_energy, motion_energy), axis=2))
-        previous_frame = frame
-        
-        sporadic_report = sporadic_report + 1
-        if sporadic_report == 5000:
-            print(f'Wrote {k} frames to file.')
-            sporadic_report = 0
-       # k = k+1   
+        while(True):
+            success, f = cap.read()
+            
+            if success:
+                frame = np.array(f[:,:,1], dtype=float) #The video is gray-scale, convert to float to be able to record negative values
+                
+                if previous_frame.shape[0] > 0:
+                    motion_energy = np.abs(frame -previous_frame).astype(np.uint8)
+                else:
+                    motion_energy = np.zeros([frame_dims[1], frame_dims[0]]).astype(np.uint8)
+                
+                wrt.write(np.stack((motion_energy, motion_energy, motion_energy), axis=2))
+                previous_frame = frame
+                
+                sporadic_report = sporadic_report + 1
+                if sporadic_report == 5000:
+                    print(f'Wrote {k} frames to file.')
+                    sporadic_report = 0
+                k = k+1
+            else:
+                print(f'Something_happend at frame {k}. Check the movie!')
+                break
+        print(f'Wrote {sporadic_report} frames. Please compare this number with the camlog file.')
         
     wrt.release()
     print(f'Completed in {time.time() - timer} seconds.')

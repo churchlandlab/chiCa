@@ -94,7 +94,7 @@ def box_scatter(axis, box_data, labels = None, bar_colors = None, x_label = None
     '''Boxplots with overlay of scattered data points'''
     gray = '#c1cdcd'
     box_error = np.std(box_data, axis=0) /  np.sqrt(box_data.shape[0])
-    axis.axhline([0], color = 'k', linewidth = ax.spines['top'].get_linewidth())
+    axis.axhline([0], color = 'k', linewidth = axis.spines['top'].get_linewidth())
     axis.bar(np.arange(1,box_data.shape[1]+1), np.mean(box_data, axis=0), color = bar_colors, edgecolor = 'k', linewidth = 1, yerr = box_error, ecolor = 'k', capsize = 3, error_kw = {'linewidth': 1})
     jitter = (np.random.rand(box_data.shape[0]) - 0.5) * 0.5
     for k in range(1, box_data.shape[1]+1):

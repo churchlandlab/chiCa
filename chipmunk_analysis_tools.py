@@ -451,12 +451,12 @@ def load_SpatialSparrow(file_name):
     import warnings
 
     #---Start the loading
+    trialdata = None
     try:
         
-        #---------Do all the loading and conversion here
         sesdata = loadmat(file_name, squeeze_me=True,
-                              struct_as_record=True)['SessionData']
-    
+                                  struct_as_record=True)['SessionData']
+        
         tmp = sesdata['RawEvents'].tolist()
         tmp = tmp['Trial'].tolist()
         uevents = np.unique(np.hstack([t['Events'].tolist().dtype.names for t in tmp])) #Make sure not to duplicate state definitions
@@ -482,65 +482,68 @@ def load_SpatialSparrow(file_name):
         trialstates = pd.DataFrame(trialstates)
         trialevents = pd.DataFrame(trialevents)
         trialdata = pd.merge(trialevents,trialstates,left_index=True, right_index=True)
+
+        #Give the touch shaker columns more useful names
+        ts_codes = ['TouchShaker1_1', 'TouchShaker1_2', 'TouchShaker1_3', 'TouchShaker1_4', 'TouchShaker1_5', 'TouchShaker1_6',
+                    'TouchShaker1_7', 'TouchShaker1_8', 'TouchShaker1_9', 'TouchShaker1_14', 'TouchShaker1_15'] #The specific touch shaker codes
+        ts_names = ['left_spout_touch', 'right_spout_touch', 'left_spout_release', 'right_spout_release',
+                    'left_handle_touch', 'right_handle_touch', 'both_handle_touch', 'left_handle_release', 'right_handle_release',
+                    'acknowledge', 'error']
         
+        for col_name in trialdata.keys():
+            if col_name in ts_codes:
+                trialdata.rename(columns={col_name: ts_names[ts_codes.index(col_name)]}, inplace=True)
+
+        #Also rename the trial start and end for convenience
+        trialdata.rename(columns={'TrialStart': 'Sync', 'TrialEnd': 'FinishTrial'}, inplace=True)        
+
         #Add response and stimulus train related information: correct side, rate, event occurence time stamps
-        trialdata.insert(trialdata.shape[1], 'response_side', sesdata['ResponseSide'].tolist())
-        trialdata.insert(trialdata.shape[1], 'correct_side', sesdata['CorrectSide'].tolist())
+        trialdata.insert(trialdata.shape[1], 'response_side', np.array(sesdata['ResponseSide'].tolist())-1)
+        trialdata.insert(trialdata.shape[1], 'correct_side', np.array(sesdata['CorrectSide'].tolist())-1)
         
         #Get stim modality
-        tmp_modality_numeric = sesdata['StimType'].tolist()
+        tmp_modality_numeric = sesdata['StimType'].tolist() #Here this is called stim type
         temp_modality = []
         for t in tmp_modality_numeric:
             if t == 1:
                 temp_modality.append('visual')
             elif t == 2: 
                 temp_modality.append('auditory')
-            elif t == 3:
-                temp_modality.append('audio-visual')
             else: 
                 temp_modality.append(np.nan)
                 print('Could not determine modality and set value to nan')
                 
         trialdata.insert(trialdata.shape[1], 'stimulus_modality', temp_modality)
         
-        #TODO: Include the stim timestamps
-        # #Reconstruct the time stamps for the individual stimuli
-        # event_times = []
-        # event_duration = sesdata['StimulusDuration'].tolist()[0]
-        # for t in range(trialdata.shape[0]):
-        #     if tmp_modality_numeric[t] < 3: #Unisensory
-        #         temp_isi = sesdata['InterStimulusIntervalList'].tolist().tolist()[t][tmp_modality_numeric[t]-1]
-        #         #Index into the corresponding trial and find the isi for the corresponding modality
-        #     else:
-        #         temp_isi = sesdata['InterStimulusIntervalList'].tolist().tolist()[t][0]
-        #         #For now assume synchronous and only look at visual stims
-        #         warnings.warn('Found multisensory trials, assumed synchronous condition')
+        #Here row 0 is the right side vs 1 is the left
+        stim_strength = sesdata['StimSideValues'].tolist()[0,:].astype(int) - sesdata['StimSideValues'].tolist()[1,:].astype(int)
+        trialdata.insert(trialdata.shape[1], 'stimulus_strength', stim_strength)
+
+        #Get the timestamps for the stims on the left and right side, these are not exactly the same number as intended though!!
+        event_times = []
+        for t in range(trialdata.shape[0]):
+            temp_evs = sesdata['stimEvents'].tolist()[t].tolist()
+            event_times.append([temp_evs[1], temp_evs[0]]) #append these here like this because the sides were flipped. Index 0 in the original data means right 
+        trialdata.insert(trialdata.shape[1], 'stimulus_event_timestamps', event_times)
+        
+                    
+        # #Insert the outcome record for faster access to the different trial outcomes
+        # trialdata.insert(0, 'outcome_record', sesdata['OutcomeRecord'].tolist())
+        
+        # try: 
+        #     tmp = sesdata['TrialDelays'].tolist()
+        #     for key in tmp[0].dtype.fields.keys(): #Find all the keys and extract the data associated with them
+        #         tmp_delay = tmp[key].tolist()
+        #         trialdata.insert(trialdata.shape[1], key , tmp_delay)
+        # except:
+        #     print('For this version of chipmunk the task delays struct was not implemented yet.\nDid not generate the respective columns in the data frame.')
             
-        #     temp_trial_event_times = [temp_isi[0]] 
-        #     for k in range(1,temp_isi.shape[0]-1): #Start at 1 because the first Isi is already the timestamp after the play stimulus
-        #         temp_trial_event_times.append(temp_trial_event_times[k-1] + event_duration + temp_isi[k])
+        # tmp = sesdata['ActualWaitTime'].tolist()
+        # trialdata.insert(trialdata.shape[1], 'actual_wait_time' , tmp)
+        # #TEMPORARY: import the demonstrator and observer id
+        # tmp = sesdata['TrialSettings'].tolist()
+        # trialdata.insert(trialdata.shape[1], 'demonstrator_ID' , tmp['demonID'].tolist())
         
-        #     event_times.append(temp_trial_event_times + trialdata['PlayStimulus'][t][0]) #Add the timestamp for play stimulus to the event time
-        
-        # trialdata.insert(trialdata.shape[1], 'stimulus_event_timestamps', event_times)
-        tmp = sesdata['StimSideValues'].tolist().astype(int)
-        trialdata.insert(trialdata.shape[1], 'stimulus_strength', tmp[1,:] - tmp[0,:])
-        
-        #Insert the outcome record for faster access to the different trial outcomes
-        outcome_record = np.zeros([trialdata.shape[0]]) - 2 #Start with the not initiated case
-        outcome_record[(sesdata['DidNotLever'].tolist()==0) & (sesdata['Punished'].tolist()==1)] = 0 #When completed but punished
-        outcome_record[(sesdata['DidNotLever'].tolist()==0) & (sesdata['Rewarded'].tolist()==1)] = 1 #When completed and rewarded
-        outcome_record[(sesdata['DidNotLever'].tolist()==0) & (sesdata['DidNotChoose'].tolist()==1)] = 2 #When not completed
-        trialdata.insert(0, 'outcome_record', outcome_record)
-        trialdata.insert(0, 'self_performed', sesdata['Assisted'].tolist())
-        
-        
-        #Use preStim delay, wait time (the stimulus presentation length) and the iti here
-        trialdata.insert(trialdata.shape[1],'preStimDelay', sesdata['TrialSettings'].tolist()['preStimDelay'].tolist())
-        trialdata.insert(trialdata.shape[1],'waitTime', sesdata['TrialSettings'].tolist()['WaitingTime'].tolist())
-        trialdata.insert(trialdata.shape[1],'interTrialInterval', sesdata['ITIjitter'].tolist())
-            
-     
         #Add a generic state tracking the timing of outcome presentation, this is also a 1d array of two elements
         outcome_timing = []
         for k in range(trialdata.shape[0]):
@@ -552,17 +555,82 @@ def load_SpatialSparrow(file_name):
                 outcome_timing.append(np.array([np.nan, np.nan]))
         trialdata.insert(trialdata.shape[1], 'outcome_presentation', outcome_timing)
         
+        # # Retrieve the flag for revised choices
+        # trialdata.insert(trialdata.shape[1], 'revise_choice_flag', np.ones(trialdata.shape[0], dtype = bool) * sesdata['ReviseChoiceFlag'].tolist())
+        
         #Get the Bpod timestamps for the start of each new trial
         trialdata.insert(trialdata.shape[1], 'trial_start_time' , sesdata['TrialStartTimestamp'].tolist())
+        trialdata.insert(trialdata.shape[1], 'assisted_trial', sesdata['SingleSpout'].tolist())
+        # #----Get the timestamp of when the mouse gets out of the response poke
+        # #Here, a minimum poke duration of 100 ms is a requirement. Coming out
+        # #of the response port after less than 100 ms is not considered a retraction
+        # #an will be ignored and the next Poke out event will be counted.
+        # #Note: The timestamps are always calculated with respect to the 
+        # #start of the trial during which the response happened, even if the 
+        # #mouse only retracted on the next trial (usually when rewarded!)
+        # #Also note that there is always a < 100 ms period where Bpod does
+        # #not run a state machine and thus doesn't log events. It is possible that 
+        # #that retraction events might be missed because of this interruption.
+        # #These missed events will be nan.
+        # response_port_out = []
+        # for k in range(trialdata.shape[0]):
+        #     event_name = None
+        #     if trialdata['response_side'][k] == 0:
+        #         event_name = 'Port1Out'
+        #     elif trialdata['response_side'][k] == 1:
+        #         event_name = 'Port3Out'
+            
+        #     poke_ev = None
+        #     if event_name is not None:
+        #         #First check current trial
+        #         add_past_trial_time = 0 #Time to be added if the retrieval only happens in the following trial
+        #         tmp = trialdata[event_name][k][trialdata[event_name][k] > trialdata['outcome_presentation'][k][0]]
+                
+        #         #Now sometimes the mice retract very fast, faster than the normal reaction time
+        #         #skip these events in this case and consider the next one
+        #         candidates = tmp.shape[0]
+        #         looper = 0
+        #         while (poke_ev is None) & (looper < candidates):
+        #             tmptmp = tmp[looper]
+        #             if tmptmp - trialdata['outcome_presentation'][k][0] > 0.1:
+        #                 poke_ev = tmptmp
+        #             looper = looper + 1
+                
+        #         if poke_ev is None: #Did not find a poke out event that fullfills the criteria
+        #             if k < (trialdata.shape[0] - 1): # Stop from checking at the very end...
+        #                 tmp = trialdata[event_name][k+1][trialdata[event_name][k+1] < trialdata['Port2In'][k+1][0]]
+        #                 #Check all the candidate events at the beginning of the next trial but before center fixation.
+        #                 add_past_trial_time = trialdata['trial_start_time'][k+1] - trialdata['trial_start_time'][k]
+        #                 if tmp.shape[0] > 0:
+        #                     poke_ev = np.min(tmp) #These would actually come sorted already...
+        #     if poke_ev is not None:          
+        #         response_port_out.append(np.array([poke_ev + add_past_trial_time, poke_ev + add_past_trial_time]))
+        #     else:
+        #         response_port_out.append(np.array([np.nan, np.nan]))
 
+        # trialdata.insert(trialdata.shape[1], 'response_port_out', response_port_out)
         
+        
+        # if 'ObsOutcomeRecord' in sesdata.dtype.fields:
+        #     trialdata.insert(1, 'observer_outcome_record', sesdata['ObsOutcomeRecord'].tolist())
+        #     tmp = sesdata['ObsActualWaitTime'].tolist()
+        #     trialdata.insert(trialdata.shape[1], 'observer_actual_wait_time' , tmp)
+        #     tmp = sesdata['TrialSettings'].tolist()
+        #     trialdata.insert(trialdata.shape[1], 'dobserver_ID' , tmp['obsID'].tolist())
+   
+        
+        # #Finally, verify the the number of trials
+        
+        
+        # #----Now the saving
+        # trialdata.to_hdf(os.path.splitext(current_file)[0] + '.h5', '/Data') #Save as hdf5
+        # converted_files.append(os.path.splitext(current_file)[0] + '.h5') #Keep record of the converted files
         
     except:
-        warnings.warn(f"CUATON: An error occured and {file_name} could not be loaded")
-        
+        warnings.warn(f"CUATON: An error occured and {file_name} could not be converted")
     return trialdata
 
-   ###################################################################################################                     
+   ###################################################################################################                                
 #%%
 
 def pick_files(file_extension='*'):
@@ -697,6 +765,7 @@ def align_behavioral_video(camlog_file):
     import numpy as np
     from labcams import parse_cam_log, unpackbits #Retrieve the correct channel and spot trial starts in frames
     from scipy.io import loadmat #Load behavioral data for ground truth on trial number
+    from scipy.stats import mode
     from os import path, makedirs
     from glob import glob
     
@@ -726,18 +795,66 @@ def align_behavioral_video(camlog_file):
         raise ValueError('There is at least one very unusual frame interval.\nPlease check the log file.')
     else:
         video_frame_interval = np.mean(np.diff(logdata['timestamp'])) #Compute average time between frames
-    
+    #TODO: Try except block to check using unpack bits and trial starts comments
     #Find trial start frames
-    onsets, offsets = unpackbits(logdata['var2']) #The channel log is always unnamed and thus receives the key var2
-    for k in onsets.keys():
-        if onsets[k].shape[0] == trial_num + 1: # In most cases an unfinished trial will already have been started
-            trial_start_video_frames = onsets[k][0 : trial_num] + 1 #Onsets seems to pick the frame identity just before the real frame, as validated by checking the videos.
-        elif onsets[k].shape[0] == trial_num: # Sometimes the acquisition stops just after the end of the trial before the beginning of the next one
-            trial_start_video_frames = onsets[k] + 1
-            
-    if not 'trial_start_video_frames' in locals():
-        raise ValueError('In none of the camera channels the onset number matched the trial number. Please check the log files and camera setup.')
-    
+    try:
+        trial_start_video_frames = [] #Uuugly!!!
+        onsets, offsets = unpackbits(logdata['var2']) #The channel log is always unnamed and thus receives the key var2
+        for k in onsets.keys():
+            if onsets[k].shape[0] == trial_num + 1: # In most cases an unfinished trial will already have been started
+                trial_start_video_frames = onsets[k][0 : trial_num] + 1 #Onsets seems to pick the frame identity just before the real frame, as validated by checking the videos.
+            elif onsets[k].shape[0] == trial_num: # Sometimes the acquisition stops just after the end of the trial before the beginning of the next one
+                trial_start_video_frames = onsets[k] + 1
+                
+        if len(trial_start_video_frames) == 0:
+            raise ValueError('In none of the camera channels the onset number matched the trial number. Please check the log files and camera setup.')
+    except:
+        print('The onset numbers did not match the expected trial number, trying to reconstruct missing onsets from comments...')
+        
+        bits = np.unique(logdata['var2'])
+        bit_rank =  np.flip(np.argsort([np.sum(logdata['var2']==k) for k in bits]))
+        low_bit = bits[bit_rank[0]] #Take most aboundant state for individual frame identifier
+        high_bit = bits[bit_rank[1]] #Second most abundant should represent the ttl high during the sync state
+        
+        ttl_high = []
+        trial_start_video_frames = []
+        comment_idx = []
+        trial_id = []
+        for k in comments:
+            if 'trial_start' in k:
+               idx = int(k.split(',')[0][2:])
+               if idx == -1:
+                   break
+               uu = np.unique(logdata['var2'][idx-2:idx+14])
+               ttl_high.append(high_bit in uu)
+               comment_idx.append(idx)
+               if high_bit in uu:
+                   #This is really tailored to some very irregular data and might not be a very general solution.
+                   #Try to improve the stability of the synchronization...
+                   looper = -2
+                   success = False
+                   while looper <= 14 and not success:
+                       if (logdata['var2'][idx + looper] == high_bit) and (logdata['var2'][idx + looper - 1] != high_bit): #Any change to the high bit 
+                           trial_start_video_frames.append(idx + looper)
+                           trial_id.append(int(k.split(':')[1]))
+                           success = True
+                       looper = looper + 1
+                   if not success:
+                       trial_start_video_frames.append(np.nan)
+                       trial_id.append(int(k.split(':')[1]))
+               else:
+                     trial_start_video_frames.append(np.nan)
+        ttl_high = np.array(ttl_high)
+        trial_start_video_frames = np.array(trial_start_video_frames)
+        comment_idx = np.array(comment_idx)
+        #Infer the actual trial start from the most frequent delay
+        expected_delay = mode(trial_start_video_frames - comment_idx)[0][0]
+        trial_start_video_frames[np.where(ttl_high==0)[0]] = comment_idx[np.where(ttl_high==0)[0]] + expected_delay
+        trial_start_video_frames = np.array(trial_start_video_frames)
+        
+        print(f'Inferred the trial start for the following trials: {np.where(ttl_high==0)[0]}')
+        if not ((np.sum(np.isnan(trial_start_video_frames))==0) & ((trial_start_video_frames.shape[0]==trial_num) or (trial_start_video_frames.shape[0]==trial_num-1))): #Complicated expression
+            raise ValueError('Could not identify or reconstruct the trial onsets from the camlog file. Please check the log files and camera setup.')
     #Check if the proper directory exists to store the data
     directory = path.join(path.split(camlog_file)[0],'..', 'analysis')
     
@@ -747,7 +864,7 @@ def align_behavioral_video(camlog_file):
     else:
         print(f"Directory {directory} already exists")
     
-    video_alignment_data = dict({'camera_name': camera_name, 'trial_starts': trial_start_video_frames, 'frame_interval': video_frame_interval})
+    video_alignment_data = dict({'camera_name': camera_name, 'trial_starts': trial_start_video_frames.astype(int), 'frame_interval': video_frame_interval})
     
     output_name = path.splitext(path.split(camlog_file)[1])[0]
     np.save(path.join(path.split(camlog_file)[0],'..', 'analysis', output_name + '_video_alignment.npy'), video_alignment_data)
@@ -886,6 +1003,9 @@ def align_miniscope_data(caiman_file, coax_position = None):
     if  len(chipmunk_file) == 0: #Maybe it is actually spotlight...
         chipmunk_file = glob.glob(session_directory + '/spotlight/*.mat')
         print('No chipmunk folder found, looking for spotlight instead...')
+    if  len(chipmunk_file) == 0: #Could still be SpatialSparrow...
+        chipmunk_file = glob.glob(session_directory + '/SpatialSparrow/*.mat')
+        print("Nope, let's check for SpatialSparrow...")    
     if  len(chipmunk_file) == 0: #Not copied
         print("It looks like the behavior file has not yet been copied to this folder")
             

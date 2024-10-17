@@ -639,3 +639,48 @@ def fit_gaussian_mixture(x_train, x_predict, number_of_gaussians = 2):
     gm_approach_probabilities=np.array(gm_model.predict_proba(x_predict))
     
     return gm_approach_labels, gm_approach_probabilities, gm_model
+
+
+#%%----
+
+def fit_kmeans(x_train, x_predict, number_of_clusters = 2):
+    
+    '''Function to create kmeans clustering from one matrix with ground truth and apply predictions to second matrix of interest
+     
+    Parameters
+    ----------
+    x_train: matrix you want to train the model on 
+    x_predict: matrix you want to run the predictions on 
+    number_of_clusters: int, number of gaussian components to fit to the data
+    
+    Returns
+    -------
+    gm_approach_labels: matrix of labels
+    gm_approach_probabilities: matrix including probabilies for prediction
+    gm_model: gaussian mixture model object
+                        
+    Examples
+    --------
+    approachsidelabel,approachprobability, gm_obj = approachside(state4_x_matrix,state1_x_matrix)
+    
+    '''
+    
+    import numpy as np
+    from sklearn.cluster import KMeans
+    
+    #create gaussian distribtion info from training matrix
+    gm_model=KMeans(n_clusters=2).fit(x_train)
+    
+    #use gm matrix to generate predictions of L (0) and R (1) position on prediction matrix
+    # gm_predictions=gm_x_matrix.predict(x_matrix_predict)
+    gm_approach_labels=np.array(gm_model.predict(x_predict))
+    
+    #TODO: Sort component labels in ascending order of their gaussian means, this may be tricky in a high-dimensional case
+    mean1=np.mean(x_predict[gm_approach_labels==1])
+    mean0=np.mean(x_predict[gm_approach_labels==0])
+    
+    if mean0>mean1:
+        gm_approach_labels=(~gm_approach_labels.astype(bool)).astype(int)
+    
+    
+    return gm_approach_labels, gm_model

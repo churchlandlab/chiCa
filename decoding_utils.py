@@ -69,7 +69,7 @@ def center_angles(angles, jump_at_pi = True):
     return centered_angles
 
 #%%-------------Retrieve the time stamps for the occurence of the task state of interest
-def find_state_start_frame_imaging(state_name, trialdata, average_interval, trial_starts, trial_start_time_covered = None):
+def find_state_start_frame_imaging(state_name, trialdata, average_interval, trial_starts, trial_start_time_covered = None, trial_end_state_name = 'FinishTrial'):
     '''Locate the frame during which a certain state in the chipmunk task has
     started. The function also returns the time after state onset that was 
     covered by the frame acquisition. This may be helpful when interpreting 
@@ -107,14 +107,17 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
     if trial_start_time_covered is not None: #This should be the case for the calcium imaging data
         state_time_covered = np.zeros([len(trialdata)]) #The of the side that has been covered by the frame
         for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
-            if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
+            state_timing = trialdata[state_name][n][0]
+            if isinstance(state_timing,np.ndarray): #This happens when states can be visited more than once, like the wait for animal in spatial sparrow
+                state_timing = trialdata[state_name][n][-1][0]
+            if np.isnan(state_timing) == 0: #The state has been visited
                 try:    
-                      frame_time = np.arange(trial_start_time_covered[n], (trialdata['FinishTrial'][n][0] + 30) - trialdata['Sync'][n][0] + average_interval, average_interval) #Add one more frame as safety margin
+                      frame_time = np.arange(trial_start_time_covered[n], (trialdata[trial_end_state_name][n][0] + 30) - trialdata['Sync'][n][0] + average_interval, average_interval) #Add one more frame as safety margin
                       #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
                 except:
-                      frame_time = np.arange(trial_start_time_covered[n], (trialdata['FinishTrial'][n][0] + 30) - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
+                      frame_time = np.arange(trial_start_time_covered[n], (trialdata[trial_end_state_name][n][0] + 30) - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
                       #If this is the previous implementation of chipmunk
-                tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
+                tmp = frame_time - state_timing #Calculate the time difference
                 state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_starts[n])
                 #np.where returns a tuple where the first element are the indices that fulfill the condition.
                 #Inside the array of indices retrieve the first one that is positive, therefore the first
@@ -128,14 +131,17 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
     else: #This is the case for the behavioral videos
         state_time_covered = None #The of the side that has been covered by the frame
         for n in range(len(trialdata)): #Subtract one here because the last trial is unfinished
-            if np.isnan(trialdata[state_name][n][0]) == 0: #The state has been visited
+            state_timing = trialdata[state_name][n][0]
+            if isinstance(state_timing,np.ndarray): #This happens when states can be visited more than once, like the wait for animal in spatial sparrow
+                state_timing = trialdata[state_name][n][-1][0]
+            if np.isnan(state_timing) == 0: #The state has been visited
                 try:    
-                      frame_time = np.arange(0, (trialdata['FinishTrial'][n][0] + 30) - trialdata['Sync'][n][0] + average_interval, average_interval)
+                      frame_time = np.arange(0, (trialdata[trial_end_state_name][n][0] + 30) - trialdata['Sync'][n][0] + average_interval, average_interval)
                       #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
                 except:
-                      frame_time = np.arange(0, (trialdata['FinishTrial'][n][0] + 30) - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
+                      frame_time = np.arange(0, (trialdata[trial_end_state_name][n][0] + 30) - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
                       #If this is the previous implementation of chipmunk
-                tmp = frame_time - trialdata[state_name][n][0] #Calculate the time difference
+                tmp = frame_time - state_timing #Calculate the time difference
                 state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_starts[n])
                 #np.where returns a tuple where the first element are the indices that fulfill the condition.
                 #Inside the array of indices retrieve the first one that is positive, therefore the first
@@ -682,7 +688,7 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
     models = pd.DataFrame(columns=['model_accuracy', 'model_coefficients', 'model_intercept', 'model_n_iter', 
                                    'shuffle_accuracy', 'shuffle_coefficients', 'shuffle_intercept', 'shuffle_n_iter',
                                    'parameters', 'fold_number','number_of_samples', 'test_index',
-                                   'model_prediction_logodds', 'shuffle_prediction_logodds'],
+                                   'model_prediction_logodds', 'shuffle_prediction_logodds','model_predictions','shuffle_predictions'],
                           index=range(0, k_folds))
             
     skf = StratifiedKFold(n_splits = k_folds, shuffle = True) #Use stratified cross-validation to make sure 
@@ -729,6 +735,7 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
         models['model_accuracy'][n] = log_reg.score(X_test, y_test)
         models['model_coefficients'][n] = log_reg.coef_
         models['model_prediction_logodds'][n] = log_reg.decision_function(X_test)
+        models['model_predictions'][n] = log_reg.predict(X_test)
         if fit_intercept:
             models['model_intercept'][n] = log_reg.intercept_[0] #Returns an array in this case
             models['shuffle_intercept'][n] = log_reg_shuffled.intercept_[0]
@@ -741,6 +748,7 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
         models['shuffle_accuracy'][n] = log_reg_shuffled.score(X_test, y_test)
         models['shuffle_coefficients'][n] = log_reg_shuffled.coef_
         models['shuffle_prediction_logodds'][n] = log_reg_shuffled.decision_function(X_test)
+        models['shuffle_predictions'][n] = log_reg_shuffled.predict(X_test)
       
         models['shuffle_n_iter'][n] = log_reg_shuffled.n_iter_[0]
 
@@ -1161,3 +1169,117 @@ def train_lasso_model(x_data, y_data, k_folds, alpha = None, fit_intercept = Tru
             models['number_of_samples'][n]= X_train.shape[0]
     return models
 
+##########################################################################
+#%%------------
+def determine_approach_side(session_dir, body_part = 'rectum', time_window = [-0.2,0], show_figures = True):
+    '''Determine the side the animal is approaching from for every trial.
+    
+    Parameters
+    ----------
+    session_dir: string, the path to the respective session directory. You have 
+                 to have the dlc analysis downloaded and the chipmunk file present as well.
+    body_part: str, the name of the body part you are basing the approach side on
+                    default=rectum
+    time_window: list or array, the time with respect to trial initiation
+                 considered to be useful to extract the approach side info
+    show_figure: bool, flag to plot figures    
+
+    Returns
+    -------
+    approach_side: array, a vector of approach side labels, 0 is approaching from
+                    left, 1 indicates approaching from right
+                    
+    Usage
+    ----
+    approach_side = determine_approach_side(session_dir, body_part = 'rectum', time_window = [-0.2,0], show_figures = True)
+    '''
+    
+    import numpy as np
+    import os
+    import glob
+    import chiCa
+    from chiCa.choice_strategy_models import fit_kmeans
+    import matplotlib.pyplot as plt
+    plt.rcParams["font.family"] = "Arial"
+    
+    
+    #------Loading the data--------------------
+    trialdata = pd.read_hdf(glob.glob(session_dir + '/chipmunk/*.h5')[0], '/Data')
+    
+    #Get video alignment
+    video_alignment_files = glob.glob(session_dir + '/analysis/*video_alignment.npy')
+    if len(video_alignment_files) > 1:
+            print('More than one video is currently not supported')
+    video_alignment = np.load(video_alignment_files[0], allow_pickle = True).tolist()
+    frame_rate = round(1/video_alignment['frame_interval'])
+    
+    #Retrieve dlc tracking
+    dlc_file = glob.glob(session_dir + '/dlc_analysis/*.h5')[-1] #Load the latest extraction!
+    dlc_data = pd.read_hdf(dlc_file)
+    dlc_metadata = pd.read_pickle(os.path.splitext(dlc_file)[0] + '_meta.pickle')
+    
+    #---Extract a set of dlc labels and standardize these.
+    dlc_keys = dlc_data.keys().tolist()
+    specifier = dlc_keys[0][0] #Retrieve the session specifier that is needed as a keyword
+    body_part_name = dlc_metadata['data']['DLC-model-config file']['all_joints_names']
+    
+    temp_body_parts = []
+    part_likelihood_estimate = []
+    for bp in body_part_name:
+        for axis in ['x', 'y']:
+            temp_body_parts.append(np.array(dlc_data[(specifier, bp, axis)]))
+        part_likelihood_estimate.append(np.array(dlc_data[(specifier, bp, 'likelihood')]))
+    temp_body_parts = np.squeeze(temp_body_parts)
+ 
+    #---Set the times up
+    aligned_to = 'DemonInitFixation'
+    time_frame = np.array(np.array(time_window)*frame_rate, dtype=int)
+    
+    #Assemble the task variable design matrix
+    choice = np.array(trialdata['response_side'])
+    prior_choice =  chiCa.determine_prior_variable(np.array(trialdata['response_side']), np.ones(len(trialdata)), 1, 'consecutive')
+    #valid_trials = np.where((np.isnan(choice) == 0) & (np.isnan(prior_choice)==0))
+    #valid_trials =  np.where((np.isnan(prior_choice)==0))
+    valid_trials = np.arange(trialdata.shape[0]) #Decided to include all the trials but rather look at high confidence labels.
+    
+    #------align the label position to the task timing
+    body_parts = dict()
+    part_likelihood = dict()
+   
+    state_start_frame, state_time_covered = find_state_start_frame_imaging(aligned_to, trialdata, video_alignment['frame_interval'], video_alignment['trial_starts'])                                                                     
+    zero_frame = np.array(state_start_frame[valid_trials] + time_frame[0], dtype=int) #The firts frame to consider
+   
+    for add_to in np.arange(time_frame[1] - time_frame[0]):
+        for bp_idx in range(len(body_part_name)):
+            if (add_to == 0):
+                body_parts[body_part_name[bp_idx]] = temp_body_parts[2*bp_idx : 2*bp_idx+2, zero_frame + add_to, np.newaxis].transpose(2,1,0)
+                part_likelihood[body_part_name[bp_idx]] = part_likelihood_estimate[bp_idx][zero_frame + add_to, np.newaxis].T
+            else:   
+                body_parts[body_part_name[bp_idx]] = np.concatenate((body_parts[body_part_name[bp_idx]], temp_body_parts[2*bp_idx : 2*bp_idx+2, zero_frame + add_to, np.newaxis].transpose(2,1,0)),axis=0)
+                part_likelihood[body_part_name[bp_idx]] = np.concatenate((part_likelihood[body_part_name[bp_idx]], part_likelihood_estimate[bp_idx][zero_frame + add_to, np.newaxis].T),axis=0)
+            
+    #--------Fit a gaussian mixture model using the body part of interest.
+    #Here the first input is the training data
+    high_confidence =  np.mean(part_likelihood[body_part],axis=0) > 0.99
+    x_train = body_parts[body_part][:,high_confidence,0].T
+    x_test = body_parts[body_part][:,:,0].T
+    
+    #approach_side, approach_side_likelihood, gm_obj = fit_gaussian_mixture(x_train, x_test)
+    approach_side, gm_obj = fit_kmeans(x_train, x_test)
+    
+    #----Show figure to validate the result
+    if show_figures:
+        upper_lims = [dlc_metadata['data']['frame_dimensions'][1], dlc_metadata['data']['frame_dimensions'][0]]
+        color_names = ['forestgreen', 'darkorchid']
+        line_legend = ['left approach', 'right approach']
+        fi = plt.figure()
+        ax = fi.add_subplot(111)
+        for k in range(2):
+            ax.plot(body_parts[body_part][:, approach_side==k , 0], body_parts[body_part][:, approach_side==k, 1], linewidth=0.5, color = color_names[k])
+        ax.set_xlim([0,upper_lims[0]])
+        ax.set_ylim([0, upper_lims[1]])
+        ax.set_xlabel('x pixels')
+        ax.set_ylabel('y pixels')
+        ax.set_title(session_dir + ' - approach side from ' + body_part)
+     
+    return approach_side
