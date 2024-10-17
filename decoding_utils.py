@@ -1171,7 +1171,7 @@ def train_lasso_model(x_data, y_data, k_folds, alpha = None, fit_intercept = Tru
 
 ##########################################################################
 #%%------------
-def determine_approach_side(session_dir, body_part = 'rectum', time_window = [-0.2,0], show_figures = True):
+def determine_approach_side(session_dir, body_part = 'rectum', time_window = [-0.2,0], label_confidence_threshold = 0.99, show_figures = True):
     '''Determine the side the animal is approaching from for every trial.
     
     Parameters
@@ -1182,6 +1182,7 @@ def determine_approach_side(session_dir, body_part = 'rectum', time_window = [-0
                     default=rectum
     time_window: list or array, the time with respect to trial initiation
                  considered to be useful to extract the approach side info
+    label_confidence_threshold: float, the threshold of label likelihood
     show_figure: bool, flag to plot figures    
 
     Returns
@@ -1260,7 +1261,7 @@ def determine_approach_side(session_dir, body_part = 'rectum', time_window = [-0
             
     #--------Fit a gaussian mixture model using the body part of interest.
     #Here the first input is the training data
-    high_confidence =  np.mean(part_likelihood[body_part],axis=0) > 0.99
+    high_confidence =  np.mean(part_likelihood[body_part],axis=0) > label_confidence_threshold
     x_train = body_parts[body_part][:,high_confidence,0].T
     x_test = body_parts[body_part][:,:,0].T
     
