@@ -131,7 +131,71 @@ class video_snippets:
             # self.snippets = np.split(movie, len(self.time_points), axis=2)
             print(f'Loaded snippets in {time() - start_t} seconds')
             print('----------------------------------------------')
+        
+        elif isinstance(self.video_file, list):
+            # Open video
+            cap = cv2.VideoCapture(self.video_file[0])
+            #Determine dimensions for specified loading later
+            success, f = cap.read()
+            frame = f[:,:,1] #The video is gray-scale
+            cap.set(cv2.CAP_PROP_POS_FRAMES,0) #Reset to 0 position
             
+            #Get the frame number of the first movie to navigate through the other ones 
+            frames_per_file = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) #Number of frames per video file in the list, except last that might be shorter              
+            window_frames = int(round(self.window/self.video_frame_interval)) #Round first to not automatically floor for the int
+        
+            #Start loading the snippets
+            self.snippets = [] #Pre-allocate the snippet data
+            current_video = 0
+            
+            
+            start_t = time()
+            for k in range(len(self.time_points)):
+                movie = np.zeros([frame.shape[0], frame.shape[0], window_frames], dtype='uint8')
+                
+                #Make movie reader for correct movie file
+                expected_file = int(np.floor(self.time_points[k]/frames_per_file)) #Find the movie file we expect the frame in
+                if expected_file != current_video: #When the currently open movie is not the right one
+                    cap = cv2.VideoCapture(self.video_file[expected_file])
+                    current_video = expected_file
+                
+                #Find the start position within the right movie
+                if self.time_point_at == 'start':
+                    expected_position = int(self.time_points[k] - (expected_file*frames_per_file))
+                elif self.time_point_at == 'center':
+                    expected_position = int(self.time_points[k] - (expected_file*frames_per_file)) - round(window_frames/2)
+                              
+                # #Sanity check
+                print(f'Reading frame {expected_position} from file {self.video_file[expected_file]}')
+                
+                empty_runs = expected_position - int(cap.get(cv2.CAP_PROP_POS_FRAMES)) #See how many frames have to be read blank before storing them
+                
+                for n in range(empty_runs): #Read through until reaching the correct location
+                    success, f = cap.read()
+                
+                if frames_per_file - expected_position > window_frames:
+                    for n in range(window_frames):
+                        success, f = cap.read()
+                        movie[:,:,n] = f[:,:,1]
+                    self.snippets.append(movie)
+                    #print(f'Loaded snippet number {k}.')
+                elif frames_per_file - expected_position <= window_frames:
+                    first_mov = (frames_per_file - expected_position)
+                    for n in range(first_mov):
+                        success, f = cap.read()
+                        movie[:,:,n] = f[:,:,1]
+                        
+                    cap = cv2.VideoCapture(self.video_file[current_video + 1])
+                    current_video = current_video + 1
+                    second_mov = window_frames - first_mov
+                    for n in range(second_mov):
+                        success, f = cap.read()
+                        movie[:,:,first_mov + n] = f[:,:,1]
+                    self.snippets.append(movie)
+                    #print(f'Loaded snippet number {k}.')
+            print(f'Loaded snippets in {time() - start_t} seconds')
+            print('----------------------------------------------')
+                
             #-----------------------------------------------------------------
             #-------Old imprecise search version
             # #Start loading the snippets

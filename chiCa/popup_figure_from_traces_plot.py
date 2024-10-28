@@ -56,8 +56,8 @@ if __name__ == '__main__':
     gs_data = GridSpec(nrows=2, ncols=4, top=0.9, bottom=0.2, left=0.05, right=0.95 )
     gs_ui = GridSpec(nrows=1, ncols=4, top=0.1, bottom=0.05, left=0.75, right=0.95)
     gs_popup = GridSpec(nrows=1, ncols=1, top=0.1, bottom=0.05, left=0.05, right=0.12)
-    gs_stim = GridSpec(nrows=1, ncols=1, top=0.1, bottom=0.05, left=0.2, right=0.27)  
-    
+    gs_stim = GridSpec(nrows=1, ncols=1, top=0.1, bottom=0.05, left=0.15, right=0.22)  
+    gs_past_cur = GridSpec(nrows=1, ncols=1, top=0.1, bottom=0.05, left=0.25, right=0.32)  
     
     data_axes = []
     for n in range(gs_data._nrows): #Iteratively fill the grid with the desired subplots
@@ -97,6 +97,10 @@ if __name__ == '__main__':
     stimAx = fi.add_subplot(gs_stim[0,0])
     stimAx.xaxis.set_visible(False)
     stimAx.yaxis.set_visible(False)
+    
+    past_cur_Ax = fi.add_subplot(gs_past_cur[0,0])
+    past_cur_Ax.xaxis.set_visible(False)
+    past_cur_Ax.yaxis.set_visible(False)
     
     #%%-----Define basic functions to retrieve data and plot traces
         
@@ -327,7 +331,78 @@ if __name__ == '__main__':
             pppAx[k].set_ylim(y_lims)
         del y_lims
         plt.tight_layout()
+    
+    def past_curr_connection(val):
+        global current_neuron
         
+        #Here, always alagined to stimulus on for now...
+        state_start_frame, _ = decoding_utils.find_state_start_frame_imaging('PlayStimulus', trialdata, frame_interval, trial_starts)
+        aligned_signal, x_vect =  get_state_start_signal(signal, state_start_frame, frame_rate, window)
+        
+        color_specs = ['#3989c6','#d03e3e']
+        subplot_titles = ['Prior correct left', 'Prior incorrect left', 'Prior incorrect right', 'Prior correct right']
+        line_labels = ['Left choice', 'right choice']
+        x_label_string = 'Time from stim on (s)'
+        
+        past_curr_fig = plt.figure(figsize=[15,9])
+        pacAx = [None] * 4
+        
+        
+        pattern = np.array([[0,0],[0,1],[1,0],[1,1]]) #Find these cases in the data
+        choice_category = np.array([trialdata['response_side'], trialdata['correct_side']]).T
+        
+        p_cho = decoding_utils.determine_prior_variable(trialdata['response_side'], np.ones(trialdata.shape[0]), 1, mode = prior_mode)
+        p_cat = decoding_utils.determine_prior_variable(trialdata['correct_side'], np.ones(trialdata.shape[0]), 1, mode = prior_mode)
+        indices = []
+        for k in range(len(pattern)):
+            tmp = []
+            for ch in range(2):
+                tmp.append(np.where(((p_cho==pattern[k][0]) & (p_cat==pattern[k][1])) & (trialdata['response_side']==ch))[0])
+            indices.append(tmp)
+        # prior_cho_cat = np.array([p_cho, p_cat]).T
+        
+        # # line_labels = ['Prior correct left', 'Prior incorrect left', 'Prior incorrect right', 'Prior correct right']
+        # # subplot_titles = ['Correct left', 'Incorrect left', 'Incorrect right', 'Correct right']
+        
+        # prior_indices_by_curr = []
+        # curr_indices = []
+        # for k in range(4): #First find the current chocies
+        #     prior_idx = []
+        #     curr_indices.append(np.where((choice_category == k).all(1))[0])
+        #     for n in range(4): #Now spot what the previous choice was
+        #         prior_idx.append(curr_indices[k][np.where((prior_cho_cat[curr_indices[k],:] == pattern[n,:]).all(1))[0]])
+        #     prior_indices_by_curr.append(prior_idx)
+        
+        
+        #Now the entire plotting business  
+        for k in range(pattern.shape[0]):
+            pacAx[k] = past_curr_fig.add_subplot(2,2,k+1)
+            for n in range(2):
+                    tmp_mean = np.mean(aligned_signal[:,indices[k][n]], axis=1)
+                    tmp_std = np.std(aligned_signal[:,indices[k][n]], axis=1)/np.sqrt(len(indices[k][n]))
+                    
+                    pacAx[k].fill_between(x_vect, tmp_mean-tmp_std, tmp_mean+tmp_std , color=color_specs[n], alpha=0.2) 
+                    pacAx[k].plot(x_vect, tmp_mean, color=color_specs[n], label= line_labels[n] + f', {len(indices[k][n])} trials')  #Right in red
+                    pacAx[k].axvline(0, color='k', linestyle='--')
+                    
+            pacAx[k].set_title(subplot_titles[k])
+            pacAx[k].legend(loc='best')
+            if (k == 0) or (k == 2):    
+                pacAx[k].set_ylabel('Fluorescence intensity (A.U.)')
+            if (k == 2) or (k == 3):
+                pacAx[k].set_xlabel(x_label_string)      
+        
+        #Adjust y-axis limtis
+        tmp = np.zeros([4,2]) 
+        for k in range(len(pacAx)):
+         tmp[k,:] = pacAx[k].get_ylim()
+        
+        y_lims = np.array([np.min(tmp[:,0]), np.max(tmp[:,1])])
+        for k in range(len(pacAx)):
+            pacAx[k].set_ylim(y_lims)
+        del y_lims
+        plt.tight_layout()
+    
      #-----------          
         
     def stim_fig(val):
@@ -386,6 +461,9 @@ if __name__ == '__main__':
     
     button_stim = Button(stimAx, 'Split by\nstim strength')
     button_stim.on_clicked(stim_fig)
+    
+    button_past_cur = Button(past_cur_Ax, 'Split by\npast and current')
+    button_past_cur.on_clicked(past_curr_connection)
     
     figure_updater(fi, data_axes, lines_on_plots, signal, trialdata, frame_rate, window)
     
