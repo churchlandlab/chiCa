@@ -1058,8 +1058,9 @@ def align_miniscope_data(caiman_file, coax_position = None):
     trial_start_time_covered = np.array(mscope_log[trial_starts[0]+1,2] - mscope_log[trial_starts[0],2])
     # Keep the trial time that was covered by the frame acquisition
     # Check whether the number of trials is as expected
-    trial_number_matches = trial_start_frames.shape[0] == (int(chipmunk_data['nTrials']) + 1)
-    # Adding one to the number of trials is necessary becuase nTrials measures completed trials
+    trial_number_matches = trial_start_frames.shape[0] == chipmunk_data['TrialStartTimestamp'].tolist().shape[0]
+    #Compare number of recorded start times in the miniscope log with recorded trial start from bpod
+   
     if not trial_number_matches: #For sanity check
         raise ValueError('Number of trials recorded on the log file does not match the one from the behavior file.')
     

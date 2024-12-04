@@ -1196,6 +1196,7 @@ def determine_approach_side(session_dir, body_part = 'rectum', time_window = [-0
     '''
     
     import numpy as np
+    import pandas as pd
     import os
     import glob
     import chiCa
