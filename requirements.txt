@@ -1,0 +1,8 @@
+#still need to add version numbers to make this robust
+scipy
+numpy
+opencv-python
+pandas
+matplotlib
+scikit-learn
+wheel
