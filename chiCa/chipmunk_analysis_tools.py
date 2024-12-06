@@ -203,6 +203,15 @@ def convert_specified_behavior_sessions(file_names, overwrite = False):
 
             trialdata.insert(trialdata.shape[1], 'response_port_out', response_port_out)
             
+            outcome_end = []
+            for k in range(trialdata.shape[0]):
+                if np.isnan(trialdata['DemonReward'][k][0]) == 0:
+                    outcome_end.append(np.array([trialdata['response_port_out'][k][0], trialdata['response_port_out'][k][0]]))
+                elif np.isnan(trialdata['DemonWrongChoice'][k][0]) == 0:
+                    outcome_end.append(np.array([trialdata['FinishTrial'][k][0],trialdata['FinishTrial'][k][0]]))
+                else:
+                    outcome_end.append(np.array([np.nan, np.nan]))
+            trialdata.insert(trialdata.shape[1], 'outcome_end', outcome_end)
             
             if 'ObsOutcomeRecord' in sesdata.dtype.fields:
                 trialdata.insert(1, 'observer_outcome_record', sesdata['ObsOutcomeRecord'].tolist())
@@ -411,6 +420,15 @@ def load_trialdata(file_name):
 
         trialdata.insert(trialdata.shape[1], 'response_port_out', response_port_out)
         
+        outcome_end = []
+        for k in range(trialdata.shape[0]):
+            if np.isnan(trialdata['DemonReward'][k][0]) == 0:
+                outcome_end.append(np.array([trialdata['response_port_out'][k][0], trialdata['response_port_out'][k][0]]))
+            elif np.isnan(trialdata['DemonWrongChoice'][k][0]) == 0:
+                outcome_end.append(np.array([trialdata['FinishTrial'][k][0],trialdata['FinishTrial'][k][0]]))
+            else:
+                outcome_end.append(np.array([np.nan, np.nan]))
+        trialdata.insert(trialdata.shape[1], 'outcome_end', outcome_end)
         
         if 'ObsOutcomeRecord' in sesdata.dtype.fields:
             trialdata.insert(1, 'observer_outcome_record', sesdata['ObsOutcomeRecord'].tolist())
@@ -546,21 +564,27 @@ def load_SpatialSparrow(file_name):
         
         #Add a generic state tracking the timing of outcome presentation, this is also a 1d array of two elements
         outcome_timing = []
+        last_spout_out = []
         for k in range(trialdata.shape[0]):
             if np.isnan(trialdata['Reward'][k][0]) == 0:
                 outcome_timing.append(np.array([trialdata['Reward'][k][0], trialdata['Reward'][k][0]]))
+                last_spout_out.append(np.array([trialdata['FinishTrial'][k][0], trialdata['FinishTrial'][k][0]])) # This is now called finish trial because it got renamed above to be compliant with chipmunk
             elif np.isnan(trialdata['HardPunish'][k][0]) == 0:
                 outcome_timing.append(np.array([trialdata['HardPunish'][k][0],trialdata['HardPunish'][k][0]]))
+                last_spout_out.append(np.array([trialdata['HardPunish'][k][0], trialdata['HardPunish'][k][0]]))
             else:
                 outcome_timing.append(np.array([np.nan, np.nan]))
+                last_spout_out.append(np.array([np.nan, np.nan]))
         trialdata.insert(trialdata.shape[1], 'outcome_presentation', outcome_timing)
-        
+        trialdata.insert(trialdata.shape[1], 'last_spout_out', last_spout_out)
         # # Retrieve the flag for revised choices
         # trialdata.insert(trialdata.shape[1], 'revise_choice_flag', np.ones(trialdata.shape[0], dtype = bool) * sesdata['ReviseChoiceFlag'].tolist())
         
         #Get the Bpod timestamps for the start of each new trial
         trialdata.insert(trialdata.shape[1], 'trial_start_time' , sesdata['TrialStartTimestamp'].tolist())
         trialdata.insert(trialdata.shape[1], 'assisted_trial', sesdata['SingleSpout'].tolist())
+        
+        
         # #----Get the timestamp of when the mouse gets out of the response poke
         # #Here, a minimum poke duration of 100 ms is a requirement. Coming out
         # #of the response port after less than 100 ms is not considered a retraction

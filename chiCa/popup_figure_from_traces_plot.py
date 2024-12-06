@@ -23,9 +23,10 @@ if __name__ == '__main__':
     from matplotlib.widgets import Button #Import required widgets
     from matplotlib.widgets import TextBox
     from matplotlib.gridspec import GridSpec #To create a custom grid on the figure
-    import sys
-    sys.path.append('C:/Users/Lukas Oesch/Documents/ChurchlandLab/chiCa')
-    import decoding_utils
+    # import sys
+    # sys.path.append('C:/Users/Lukas Oesch/Documents/ChurchlandLab/chiCa')
+    # import decoding_utils
+    from chiCa import *
     
     #%%--Input check and convenience
     
@@ -152,8 +153,8 @@ if __name__ == '__main__':
            the figure. The states that are plotted are set inside this function 
            currently but may be passed in a later version.'''
            
-        consider_states = ['DemonInitFixation', 'DemonWaitForResponse', 'outcome_presentation', 'response_port_out']
-        label_states = ['Start center fixation', 'Movement onset', 'Outcome', 'Response port out']
+        consider_states = ['DemonInitFixation', 'DemonWaitForResponse', 'outcome_presentation', 'outcome_end']
+        label_states = ['Start center fixation', 'Movement onset', 'Outcome', 'End of outcome']
         
         pattern = np.array([[0,0],[0,1],[1,0],[1,1]]) #Find these cases in the data
         
@@ -161,8 +162,8 @@ if __name__ == '__main__':
         choice_category = np.array([trialdata['response_side'], trialdata['correct_side']]).T
         curr_indices = []
         
-        p_cho = decoding_utils.determine_prior_variable(trialdata['response_side'], np.ones(trialdata.shape[0]), 1, mode = prior_mode)
-        p_cat = decoding_utils.determine_prior_variable(trialdata['correct_side'], np.ones(trialdata.shape[0]), 1, mode = prior_mode)
+        p_cho = determine_prior_variable(trialdata['response_side'], np.ones(trialdata.shape[0]), 1, mode = prior_mode)
+        p_cat = determine_prior_variable(trialdata['correct_side'], np.ones(trialdata.shape[0]), 1, mode = prior_mode)
         prior_cho_cat = np.array([p_cho, p_cat]).T
         prior_indices = []
         
