@@ -15,7 +15,7 @@ def separate_axes(ax):
     yti = ax.get_yticks()
     yti = yti[(yti >= ax.get_ylim()[0]) & (yti <= ax.get_ylim()[1]+10**-3)] #Add a small value to cover for some very tiny added values
     ax.spines['left'].set_bounds([yti[0], yti[-1]])
-    xti = ax.get_xticks()
+    xti = np.array(ax.get_xticks())
     xti = xti[(xti >= ax.get_xlim()[0]) & (xti <= ax.get_xlim()[1]+10**-3)]
     ax.spines['bottom'].set_bounds([xti[0], xti[-1]])
     return
@@ -47,7 +47,7 @@ def fancy_violin(axis, data, violin_colors=None, labels = None, x_label = None, 
         parts['bodies'][pc].set_edgecolor('k')
         parts['bodies'][pc].set_alpha(1)
     
-    quartile1, medians, quartile3 = np.percentile(data, [25, 50, 75], axis=1)
+    quartile1, medians, quartile3 = np.percentile(data, [25, 50, 75], axis=0)
     whiskers = np.array([
         adjacent_values(sorted_array, q1, q3)
         for sorted_array, q1, q3 in zip(data, quartile1, quartile3)])
@@ -71,7 +71,10 @@ def fancy_boxplot(axis, data, box_colors, labels = None, x_label = None, y_label
     '''Draw boxplots with mean as a scatter point'''
     gray = '#c1cdcd'
     if box_colors is None:
-       box_colors = ['#f2e7c6'] * len(data)
+        if isinstance(data,list):
+            box_colors = ['#f2e7c6'] * len(data)
+        else:
+            box_colors = ['#f2e7c6'] * data.shape[1]
     
     medianprops = dict({'color': 'k'})
     meanprops = dict(marker='o', markeredgecolor='black', markerfacecolor='white')

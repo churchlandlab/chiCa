@@ -579,8 +579,9 @@ def balance_dataset_cover_all(labels, secondary_labels = None, mode = 'proportio
         #Generate contingency table of dimensions classes x secondary_classes
         cont_table = np.zeros([classes.shape[0], subclasses.shape[0]])
         for k in range(subclasses.shape[0]):
-            cont_table[0,k] = np.sum(secondary_labels[labels==0]==subclasses[k])
-            cont_table[1,k] = np.sum(secondary_labels[labels==1]==subclasses[k])
+            for n in range(classes.shape[0]):
+                cont_table[n,k] = np.sum(secondary_labels[labels==classes[n]]==subclasses[k])
+                #cont_table[1,k] = np.sum(secondary_labels[labels==1]==subclasses[k])
      
         #Find column minima, these are the minimum amount of samples of a specific secondary class between the classes
         if mode == 'proportional':
@@ -1285,3 +1286,130 @@ def determine_approach_side(session_dir, body_part = 'rectum', time_window = [-0
         ax.set_title(session_dir + ' - approach side from ' + body_part)
      
     return approach_side
+
+#%%---Cross-decoding over multiple timepoints
+
+def cross_decoding_analysis(decoding_models, data, labels, valid_trials):
+    '''Use a fitted decoding model to evaluate the performance and get the 
+    confusion matrices for all the other time points
+    
+    Parameters
+    ------
+    decoding_models: pandas data frame or list of dicts, the output from the chiCa's
+                     balanced_logistic_model_training or the version converted
+                     to a dictionary of list. This data structure contains all the
+                     decoder information and info on the trial sampling and 
+                     balancing.
+    data: array, holding the neural data for the decoding with dimensions:
+                     trial timepoint x (valid) trials x cells
+    labels: array, the full size vector of binary or multi-class labels to be
+            predicted by the neural activity
+    valid_trials: array, the indices of valid trials, valid_trials.shape[0] 
+                  should be equal to data.shape[1]
+    
+    Returns
+    -------
+    prediction_accuracy: timepoint x timepoint matrix of prediction accuracy,
+                         where columns represnt seed timepoints and rows the 
+                         computed performance from their decoders.
+    confusion_matrix: list of arrays, one list element per seed timepoint containing
+                      a class x class x timepoint tensor. 
+                
+    ---------------------------------------------------------------------------
+    '''
+    
+    
+    #Imports
+    import numpy as np
+    import pandas as pd
+    from sklearn.metrics import confusion_matrix as get_conf_mat
+    import warnings
+    warnings.filterwarnings("ignore", message="divide by zero encountered in true_divide")
+    warnings.filterwarnings("ignore", message="invalid value encountered in true_divide")
+    from time import time
+    
+    start_t = time()
+    #input check
+    if isinstance(decoding_models, pd.DataFrame):
+        dict_list = []
+        for k in output_models:
+                dict_list.append(k.to_dict('list'))       
+        decoding_models = dict_list
+        
+    prediction_accuracy = []
+    shuffled_prediction_accuracy = [] #This will hold average prediction accuracy per fold and sampling run
+    confusion_matrix = []
+    is_binary = np.shape(decoding_models[0]['model_coefficients'][0].shape)[0] == 1 #Check if it is binary classifier or multinomial
+    
+    for time_p in range(len(decoding_models)): #This is the reference time point for the cross decoding
+        tmp_acc = []
+        tmp_shu = []
+        tmp_conf = []
+        tmp_idx = []
+        for k in range(len(decoding_models[time_p]['model_prediction_logodds'])):
+            tmp_idx.append(decoding_models[time_p]['pick_to_balance'][k][decoding_models[time_p]['test_index'][k]])
+        tmp_idx = np.hstack(tmp_idx)
+        trial_idx = np.unique(tmp_idx) #This is with respect to the valid_trials as valid trial indices
+        assert trial_idx.shape[0] == valid_trials.shape[0], f'Not all the trials were sampled in session: {session_dir} at timepoint: {time_p}'
+        
+        for idx in range(len(decoding_models)):
+            if idx == time_p: #When the model is the 
+                
+                tmp_acc.append(np.mean(decoding_models[idx]['model_accuracy'],axis=0))
+                tmp_shu.append(np.mean(decoding_models[idx]['shuffle_accuracy'],axis=0))
+                #Retrieve model prediction logodds
+                if is_binary: #Annoyingly one needs to stack stuff differently for 1d vs 2d...
+                    tmp_dec = np.hstack(decoding_models[time_p]['model_prediction_logodds']).T
+                    pred = np.sign(tmp_dec) == 1
+                else:
+                    tmp_dec = np.vstack(decoding_models[time_p]['model_prediction_logodds'])
+                    pred = np.argmax(tmp_dec,axis=1) #Love argmax!
+                raw_tmp_conf = get_conf_mat(labels[valid_trials][tmp_idx],pred)
+                norm_samples = np.array([np.sum(labels[valid_trials][tmp_idx]==k) for k in np.unique(labels[valid_trials][tmp_idx])]).reshape(1,-1)
+                tmp_conf.append(raw_tmp_conf / norm_samples)
+                
+            else: #When the model is not the one that was fitted...
+                #Run through all the subsamplings and folds and use the same training and testing splits for the cross-prediction
+                tmp_logodds = []
+                shu_logodds = []
+                for run in range(len(decoding_models[time_p]['model_coefficients'])):
+                    training_index = decoding_models[time_p]['pick_to_balance'][run][list(set(np.arange(decoding_models[time_p]['pick_to_balance'][run].shape[0])) - set(decoding_models[time_p]['test_index'][run]))]
+                    #Horrible expression, basically getting the indices of the test set within all of the picked (valid) trials and subtracting them from the set of picked trials and then plugging in these
+                    #indices into pick_to_balance to retrieve the original indices of trials
+                    testing_index = decoding_models[time_p]['pick_to_balance'][run][decoding_models[time_p]['test_index'][run]]
+                    #Compute average and standard deviation from training data
+                    training_data = data[idx,training_index,:]
+                    av = np.mean(training_data,axis=0)
+                    st_dev = np.std(training_data,axis=0)
+                    # Standardize with the testing data
+                    testing_data = (data[idx, testing_index,:] - av) / st_dev
+                    testing_data[np.isnan(testing_data)] = 0 #Remove cases where std is 0 leading to nan, or ..
+                    testing_data[np.isinf(testing_data)] = 0 #..where both std and av are 0 leading to inf
+                    coefs = decoding_models[time_p]['model_coefficients'][run] #Get decoder weights
+                    tmp_logodds.append(testing_data @ coefs.T + decoding_models[time_p]['model_intercept'][run]) #Compute logodds for the different labels (if more than two classes)
+                    shu_coefs = decoding_models[time_p]['shuffle_coefficients'][run]
+                    shu_logodds.append(testing_data @ shu_coefs.T + decoding_models[time_p]['shuffle_intercept'][run])
+                #Calculate accuracy and confusion matrix
+                if is_binary: #Annoyingly one needs to stack stuff differently for 1d vs 2d...
+                    tmp_dec = np.hstack(tmp_logodds).T
+                    pred = np.sign(tmp_dec) == 1
+                    tmp_dec = np.hstack(shu_logodds).T
+                    shu_pred = np.sign(tmp_dec) == 1
+                else:
+                    tmp_dec = np.vstack(tmp_logodds)
+                    pred = np.argmax(tmp_dec,axis=1) #Love argmax!
+                    tmp_dec = np.vstack(shu_logodds) #Do the same with shuffles as well
+                    shu_pred = np.argmax(tmp_dec,axis=1) 
+                    
+                tmp_acc.append(np.mean(labels[valid_trials][tmp_idx] == pred))
+                tmp_shu.append(np.mean(labels[valid_trials][tmp_idx] == shu_pred))
+                raw_tmp_conf = get_conf_mat(labels[valid_trials][tmp_idx],pred)
+                norm_samples = np.array([np.sum(labels[valid_trials][tmp_idx]==k) for k in np.unique(labels[valid_trials][tmp_idx])]).reshape(1,-1)
+                tmp_conf.append(raw_tmp_conf / norm_samples)
+        prediction_accuracy.append(np.squeeze(tmp_acc))
+        shuffled_prediction_accuracy.append(np.squeeze(tmp_shu))
+        confusion_matrix.append(np.stack(tmp_conf,axis=2))
+        
+    print(f'Computed cross-decoding performance in {round(time()- start_t)} s')
+    print('--------------------------------------------------')
+    return np.vstack(prediction_accuracy).T, np.vstack(shuffled_prediction_accuracy).T, confusion_matrix

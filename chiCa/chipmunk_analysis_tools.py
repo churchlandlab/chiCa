@@ -1365,3 +1365,65 @@ def get_experienced_stimulus_events(trialdata, stim_modalities = ['visual', 'aud
     return t_stamps
     
 #------------------------------------------------------------------------------
+#%%-----Compute trial history and valid trials, etc.
+def get_chipmunk_behavior(session_dir):
+    '''Retrieve animal behavior information including previous choices and
+    outcomes, stim strengths, easy stims, etc.
+    '''
+    
+    import numpy as np
+    import pandas as pd
+    from glob import glob
+    import os
+    from chiCa import load_trialdata, determine_prior_variable
+    
+    #Load the trialdata
+    if isinstance(session_dir, str):
+        if len(glob(session_dir + '/chipmunk/*.h5')) == 1:
+            trialdata = pd.read_hdf(glob(session_dir + '/chipmunk/*.h5')[0], '/Data')
+        elif len(glob(session_dir + '/chipmunk/*.mat')) == 1:
+            trialdata = load_trialdata(glob(session_dir + '/chipmunk/*.mat')[0])
+        else:
+            raise RuntimeError(f"Can't find a behavioral file in {session_dir}")
+    # elif isinstance(data_source, pd.DataFrame):
+    #     trialdata = data_source
+     
+    #Get the data   
+    out_dict = dict()
+    out_dict['choice']  = np.array(trialdata['response_side'])
+    out_dict['category'] = np.array(trialdata['correct_side'])
+    out_dict['prior_choice'] =  determine_prior_variable(np.array(trialdata['response_side']), np.ones(len(trialdata)), 1, 'consecutive')
+    out_dict['prior_category'] =  determine_prior_variable(np.array(trialdata['correct_side']), np.ones(len(trialdata)), 1, 'consecutive')
+    
+    out_dict['outcome'] = np.array(trialdata['response_side'] == trialdata['correct_side'], dtype=float) #Define as float so that nans (that are float) can be retained later
+    out_dict['outcome'][np.array(np.isnan(trialdata['response_side']))] = np.nan
+    out_dict['prior_outcome'] =  determine_prior_variable(out_dict['outcome'], np.ones(len(trialdata)), 1, 'consecutive')
+       
+    modality = np.zeros([trialdata.shape[0]])
+    modality[trialdata['stimulus_modality'] == 'auditory'] = 1
+    modality[trialdata['stimulus_modality'] == 'audio-visual'] = 2
+    out_dict['modality'] = modality
+    out_dict['prior_modality'] = determine_prior_variable(modality, np.ones(len(trialdata)), 1, 'consecutive')
+    
+    #Find stimulus strengths
+    tmp_stim_strengths = np.zeros([trialdata.shape[0]], dtype=int) #Filter to find easiest stim strengths
+    for k in range(trialdata.shape[0]):
+        tmp_stim_strengths[k] = trialdata['stimulus_event_timestamps'][k].shape[0]
+    out_dict['stim_strengths'] = tmp_stim_strengths
+    
+    #Get category boundary to normalize the stim strengths
+    unique_freq = np.unique(tmp_stim_strengths)
+    category_boundary = (np.min(unique_freq) + np.max(unique_freq))/2
+    stim_strengths = (tmp_stim_strengths- category_boundary) / (np.max(unique_freq) - category_boundary)
+    if trialdata['stimulus_modality'][0] == 'auditory':
+        stim_strengths = stim_strengths * -1
+    out_dict['relative_stim_strengths'] = stim_strengths
+    out_dict['easy_stim'] = np.abs(stim_strengths) == 1 #Either extreme
+    
+    out_dict['all_valid'] = np.isnan(out_dict['choice'])==0
+    out_dict['valid_past'] = (np.isnan(out_dict['choice'])==0) & (np.isnan(out_dict['prior_choice'])==0)
+    
+    out_dict['session'] = [os.path.split(session_dir)[1]] * trialdata.shape[0]
+    return pd.DataFrame(out_dict)
+    
+#-----------------------------------------

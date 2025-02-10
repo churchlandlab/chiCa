@@ -710,6 +710,141 @@ def align_frames_miniscope_video(aligned_to, time_frame, trialdata, valid_trials
     video_frames = np.sort(np.vstack(tmp_video).flatten()).astype(int)
     
     return imaging_frames, video_frames
-   
+
+#-------------------------------------------------------------
+#%%----------------  
+    
+def fit_ridge_cv_shuffles(X, Y, alpha_range, alpha_per_target, fit_intercept, shuffle_indices, standardize_variables, training, testing):
+    '''Fit linear encoding model using the sklearn's RidgeCV and optimize for 
+    a set of provided regularization strengths alpha. This hyperparameter is
+    separately optimized in each fold. Standardization is applied on training
+    and testing data in each fold with the mean and std found from the training
+    set to avoid ddata leakage (alpha optimization is performed on the training
+    set only for the same purpose). The function allows the user to pass an
+    array of indices of columns of the design matrix to be shuffled.
+    
+    Parameters
+    ----------
+    X: array, k x r design matrix where k are the number of observations and r 
+       the number of regressors.
+    Y: array, k x n response matrix where k are observations and n are neurons.
+       Note: Each column of Y will be z-scored to the training data.
+    alpha_range: list or array, a set of regularization strengths alpha to search
+                 through and determine optimal one.
+    alpha_per_target: bool, allow a different regularization for each column of y
+    fit_intercept: bool, whether to include a global intercept or not
+    shuffle_indices: array, regressor indices that need to be shuffled.
+    standardize_variables: array, regressor indices that need to be z-scored
+    training: list of arrays, the indices of observations to include for training
+    testing: list of arrays, the indices of observations to include for testing
+    
+    Returns
+    -------
+    alphas: array, best ridge penality for each neuron
+    betas: array, the regressor weights for each neuron
+    r_squared: array, average of the coefficient of determination calculated
+               for the model in each fold
+    corr: array, average of the squared correlation coefficient between true
+          and predicted neural responses for the model in each fold.
+    y_test: list of arrays: The true z-scored neural activity for the test sets
+            in each fold. Note: if the same training and testing splits are 
+            used for multiple rounds of shuffling different regressors this will
+            be the same for each round!
+    y_hat: list of arrays: The predicted neural activity from the model fits for
+                           for every fold
+    
+    '''
+    
+    #-------------------------------------------------------------------------
+    import numpy as np
+    from time import time
+    from sklearn.linear_model import Ridge, RidgeCV
     
     
+    #Start timing the fitting
+    start_fitting = time()
+     
+    #Shuffle regressors independently for each time point
+    x_shuffle = np.array(X)
+    if shuffle_indices is not None: #Only do the shuffling when required
+        for k in shuffle_indices:
+             x_shuffle[:,k] = np.array(x_shuffle[np.random.permutation(x_shuffle.shape[0]), k]) 
+    
+    #Initialize the outputs
+    tmp_betas = []
+    tmp_alphas = []
+    tmp_r_squared = []
+    tmp_corr = []
+    cum_y_test = []
+    cum_y_hat = []
+    
+    # #First, determine alphas on the full dataset
+    # y_full = Y - np.mean(Y,axis=0) / np.std(Y, axis=0)
+    # y_full[np.isnan(y_full)] = 0
+    # y_full[np.isinf(y_full)] = 0
+    
+    # x_full = np.array(x_shuffle)
+    # x_full[:,standardize_variables] = x_full[:,standardize_variables] - np.mean(x_full[:,standardize_variables],axis=0) / np.std(x_full[:,standardize_variables], axis=0)
+    # x_full[np.isnan(x_full)] = 0
+    # x_full[np.isinf(x_full)] = 0
+    
+    # ridge_grid_search = RidgeCV(alphas = alpha_range, fit_intercept = fit_intercept, alpha_per_target = alpha_per_target, cv=None, scoring='r2').fit(x_full, y_full)
+    # alphas = ridge_grid_search.alpha_
+    
+    for fold in range(len(training)):      
+        y_data = Y[training[fold],:]
+        y_std = np.std(y_data, axis=0)
+        y_mean = np.mean(y_data, axis=0)
+        
+        y_train = (y_data - y_mean) / y_std
+        y_test = (Y[testing[fold],:] - y_mean) / y_std
+        
+        #Temporary
+        assert np.sum(y_std < 0) == 0, f"Found response variable with zero variance!"
+        
+        x_train = np.array(x_shuffle[training[fold],:]) #Let's make sure this is a new independent array
+        x_test = np.array(x_shuffle[testing[fold]])
+        if standardize_variables.shape[0] > 0: #Use the mean and std of the training set to scale the test set
+            x_std_analog = np.std(x_train[:,standardize_variables], axis=0) 
+            assert np.sum(np.isnan(x_std_analog)) == 0, f"Column(s) {standardize_variables[np.where(np.isnan(x_std_analog))[0]]} of the desing matrix have zero standard deviation."
+            x_mean_analog = np.mean(x_train[:,standardize_variables], axis=0)
+            #The reason this is named analog here is that, although one can standardize
+            #dummy variables and kernel regressors, the interpretation of these 
+            #standardized variables becomes difficult and so I chose to only z-score
+            #the analog regressors. 
+        
+            x_train[:,standardize_variables] = (x_train[:,standardize_variables] - x_mean_analog) / x_std_analog
+            x_test[:,standardize_variables] = (x_test[:,standardize_variables] - x_mean_analog) / x_std_analog
+        
+        
+        #ridge_model = Ridge(alpha = alphas, fit_intercept = fit_intercept).fit(x_train, y_train)
+        ridge_model = RidgeCV(alphas = alpha_range, fit_intercept = fit_intercept, alpha_per_target = alpha_per_target, cv=None, scoring='r2').fit(x_train, y_train)
+        tmp_betas.append(ridge_model.coef_)
+        tmp_alphas.append(ridge_model.alpha_)
+        #Get the predictions from the model
+        y_hat = ridge_model.predict(x_test)
+       
+        #Calculate the coefficient of detemination
+        ss_results = np.sum((y_test - y_hat)**2, axis = 0)
+        ss_total = np.sum((y_test - np.mean(y_test, axis=0))**2, axis = 0)
+        rsq = 1 - (ss_results / ss_total) 
+        tmp_r_squared.append(rsq)
+        
+        #Also compute squared pearon correlation
+        t_corr = np.zeros([y_test.shape[1]])*np.nan
+        for q in range(y_test.shape[1]):
+            t_corr[q] = np.corrcoef(y_test[:,q], y_hat[:,q])[0,1]**2 #It is the squared correlation coefficient here
+        tmp_corr.append(t_corr)
+        
+        cum_y_test.append(y_test)
+        cum_y_hat.append(y_hat)
+        
+    betas = np.mean(tmp_betas, axis=0)
+    r_squared = np.mean(tmp_r_squared, axis=0)
+    corr = np.mean(tmp_corr, axis=0)
+    
+    stop_fitting = time()
+    print(f'Finished run in {stop_fitting - start_fitting}')
+    
+    return alphas, betas, r_squared, corr, cum_y_test, cum_y_hat
+#------------------------------------------------------------------------------
