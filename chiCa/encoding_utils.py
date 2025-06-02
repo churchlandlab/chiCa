@@ -840,6 +840,7 @@ def fit_ridge_cv_shuffles(X, Y, alpha_range, alpha_per_target, fit_intercept, sh
         cum_y_hat.append(y_hat)
         
     betas = np.mean(tmp_betas, axis=0)
+    alphas = 10**(np.mean(np.log10(tmp_alphas))) #Use the average of the exponents for base ten here, because the input grid is on an exponential scale with base 10
     r_squared = np.mean(tmp_r_squared, axis=0)
     corr = np.mean(tmp_corr, axis=0)
     alphas = 10**(np.mean(np.log10(np.squeeze(tmp_alphas)),axis=0))

@@ -1012,7 +1012,7 @@ def align_miniscope_data(caiman_file, coax_position = None):
     from scipy.interpolate import CubicSpline #For signal interpolation
     from scipy.interpolate import interp1d
     import sys
-    sys.path.append('C:/Users/Lukas Oesch/Documents/ChurchlandLab/chiCa')
+    sys.path.append('/home/lukas/code/chiCa/chiCa/')
     from load_cnmfe_outputs import load_data as load_caiman #To get the processed imaging data
     
     #--------Sort out the location of the files-------------------------------
@@ -1082,7 +1082,7 @@ def align_miniscope_data(caiman_file, coax_position = None):
     trial_start_time_covered = np.array(mscope_log[trial_starts[0]+1,2] - mscope_log[trial_starts[0],2])
     # Keep the trial time that was covered by the frame acquisition
     # Check whether the number of trials is as expected
-    trial_number_matches = trial_start_frames.shape[0] == chipmunk_data['TrialStartTimestamp'].tolist().shape[0]
+    trial_number_matches = trial_start_frames.shape[0] == chipmunk_data['TrialStartTimestamp'].tolist().shape[0] + 1
     #Compare number of recorded start times in the miniscope log with recorded trial start from bpod
    
     if not trial_number_matches: #For sanity check
