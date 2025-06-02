@@ -1423,6 +1423,12 @@ def get_chipmunk_behavior(session_dir):
     out_dict['all_valid'] = np.isnan(out_dict['choice'])==0
     out_dict['valid_past'] = (np.isnan(out_dict['choice'])==0) & (np.isnan(out_dict['prior_choice'])==0)
     
+    out_dict['choice_two_back'] =  determine_prior_variable(np.array(trialdata['response_side']), np.ones(len(trialdata)), 2, 'consecutive')
+    out_dict['outcome_two_back'] =  determine_prior_variable(out_dict['outcome'], np.ones(len(trialdata)), 2, 'consecutive')
+    out_dict['category_two_back'] =  determine_prior_variable(np.array(trialdata['correct_side']), np.ones(len(trialdata)), 2, 'consecutive')
+    
+    out_dict['valid_two_back'] = ((np.isnan(out_dict['choice'])==0) & (np.isnan(out_dict['prior_choice'])==0)) & (np.isnan(out_dict['choice_two_back'])==0)
+    
     out_dict['session'] = [os.path.split(session_dir)[1]] * trialdata.shape[0]
     return pd.DataFrame(out_dict)
     

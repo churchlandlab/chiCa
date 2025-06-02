@@ -842,7 +842,7 @@ def fit_ridge_cv_shuffles(X, Y, alpha_range, alpha_per_target, fit_intercept, sh
     betas = np.mean(tmp_betas, axis=0)
     r_squared = np.mean(tmp_r_squared, axis=0)
     corr = np.mean(tmp_corr, axis=0)
-    
+    alphas = 10**(np.mean(np.log10(np.squeeze(tmp_alphas)),axis=0))
     stop_fitting = time()
     print(f'Finished run in {stop_fitting - start_fitting}')
     
