@@ -849,3 +849,114 @@ def fit_ridge_cv_shuffles(X, Y, alpha_range, alpha_per_target, fit_intercept, sh
     
     return alphas, betas, r_squared, corr, cum_y_test, cum_y_hat
 #------------------------------------------------------------------------------
+
+  
+def fit_ridge_cv_partial_reconstructions(X, Y, alpha_range, alpha_per_target, fit_intercept, variable_indices, standardize_variables, training, testing):
+    '''Fit linear encoding model using the sklearn's RidgeCV and optimize for 
+    a set of provided regularization strengths alpha. This hyperparameter is
+    separately optimized in each fold. Standardization is applied on training
+    and testing data in each fold with the mean and std found from the training
+    set to avoid data leakage (alpha optimization is performed on the training
+    set only for the same purpose). 
+    This function specifically fits the full model and performs reconstructions
+    of the test data for user-specified sets of regressors. Note that the
+    reconstructions are performed using the weights from the full model.
+    
+    Parameters
+    ----------
+    X: array, k x r design matrix where k are the number of observations and r 
+       the number of regressors.
+    Y: array, k x n response matrix where k are observations and n are neurons.
+       Note: Each column of Y will be z-scored to the training data.
+    alpha_range: list or array, a set of regularization strengths alpha to search
+                 through and determine optimal one.
+    alpha_per_target: bool, allow a different regularization for each column of y
+    fit_intercept: bool, whether to include a global intercept or not
+    variable_indices: list of indices, specifies the indices of the variables to
+                      used to reconstruct the signal after fitting the full model.
+    standardize_variables: array, regressor indices that need to be z-scored
+    training: list of arrays, the indices of observations to include for training
+    testing: list of arrays, the indices of observations to include for testing
+    
+    Returns
+    -------
+    alphas: array, best ridge penality for each neuron
+    betas: array, the regressor weights for each neuron
+    y_test: arrays The true z-scored neural activity arranged so that the 
+            dimensions reflect the original Y
+    y_hat: list of arrays: The predicted neural activity from the model fits for
+                           for every fold for every set of reconstructions. The
+                           array within each list element is ordered like Y
+    
+    '''
+    
+    #-------------------------------------------------------------------------
+    import numpy as np
+    from time import time
+    from sklearn.linear_model import Ridge, RidgeCV
+    
+    
+    #Start timing the fitting
+    start_fitting = time()
+     
+    #Initialize the outputs
+    tmp_betas = []
+    tmp_alphas = []
+    cum_y_test = []
+    cum_y_hat = [[] for x in range(len(variable_indices))]
+    
+    
+    for fold in range(len(training)):      
+        y_data = Y[training[fold],:]
+        y_std = np.std(y_data, axis=0)
+        y_mean = np.mean(y_data, axis=0)
+        
+        y_train = (y_data - y_mean) / y_std
+        y_test = (Y[testing[fold],:] - y_mean) / y_std
+        
+        #Temporary
+        assert np.sum(y_std < 0) == 0, f"Found response variable with zero variance!"
+        
+        x_train = np.array(X[training[fold],:]) #Let's make sure this is a new independent array
+        x_test = np.array(X[testing[fold]])
+        if standardize_variables.shape[0] > 0: #Use the mean and std of the training set to scale the test set
+            x_std_analog = np.std(x_train[:,standardize_variables], axis=0) 
+            assert np.sum(np.isnan(x_std_analog)) == 0, f"Column(s) {standardize_variables[np.where(np.isnan(x_std_analog))[0]]} of the desing matrix have zero standard deviation."
+            x_mean_analog = np.mean(x_train[:,standardize_variables], axis=0)
+            #The reason this is named analog here is that, although one can standardize
+            #dummy variables and kernel regressors, the interpretation of these 
+            #standardized variables becomes difficult and so I chose to only z-score
+            #the analog regressors. 
+        
+            x_train[:,standardize_variables] = (x_train[:,standardize_variables] - x_mean_analog) / x_std_analog
+            x_test[:,standardize_variables] = (x_test[:,standardize_variables] - x_mean_analog) / x_std_analog
+        
+        
+        #ridge_model = Ridge(alpha = alphas, fit_intercept = fit_intercept).fit(x_train, y_train)
+        ridge_model = RidgeCV(alphas = alpha_range, fit_intercept = fit_intercept, alpha_per_target = alpha_per_target, cv=None, scoring='r2').fit(x_train, y_train)
+        tmp_betas.append(ridge_model.coef_)
+        tmp_alphas.append(ridge_model.alpha_)
+        
+        #Get the predictions from the model
+        for var_set in range(len(variable_indices)):
+            cum_y_hat[var_set].append(x_test[:,variable_indices[var_set]] @ ridge_model.coef_[:,variable_indices[var_set]].T)
+        
+        cum_y_test.append(y_test)
+
+    #Now already rearange the data to reflect original time
+    sort_idx = np.argsort(np.hstack(testing))
+    full_y_test = np.vstack(cum_y_test)[sort_idx,:]
+    full_y_hat = [np.vstack(x)[sort_idx,:] for x in cum_y_hat] #Stack and sort timepoints on all of the reconsrtuctions too
+    
+    betas = np.mean(tmp_betas, axis=0)
+    alphas = 10**(np.mean(np.log10(tmp_alphas))) #Use the average of the exponents for base ten here, because the input grid is on an exponential scale with base 10
+    
+    stop_fitting = time()
+    print(f'Finished run in {stop_fitting - start_fitting}')
+    
+    return alphas, betas, full_y_test, full_y_hat
+#------------------------------------------------------------------------------
+
+
+
+

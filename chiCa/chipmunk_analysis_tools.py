@@ -1433,3 +1433,106 @@ def get_chipmunk_behavior(session_dir):
     return pd.DataFrame(out_dict)
     
 #-----------------------------------------
+#%%
+def diagnose_performance(subject):
+    '''Get some performance metrics on the level of the subject and on individual
+    sessions to decide whether to keep this subject and include specific sessions.
+    
+    ---------------------------------------------------------------------------'''
+    
+    from chiCa import convert_specified_behavior_sessions
+    import pandas as pd
+    from labdatatools import get_labdata_preferences
+    import os
+    import subprocess
+    from glob import glob
+    from time import time
+    import numpy as np
+    
+    datatype = 'chipmunk'
+    
+    start = time()
+    #Get a list of all the chipmunk sessions for the subject
+    #res = subprocess.check_output(f'labdata sessions {subject} -f {datatype}').decode().split("\n") #List all chipmunk sessions for this subject
+    res = subprocess.check_output(['labdata', 'sessions', subject, '-f', datatype]).decode().split("\n")
+    ses_list = []
+    for x in res:
+        if len(x) > 0:
+            if x[0]==" " and x[1:2]!="\t":
+                ses_list.append(x[1:])
+    
+    #Go through the sessions, copy and convert if session is not dowloaded yet
+    #and extract some metrics
+    metrics = {'session': [],
+               'corrupted': [],
+               'modality': [],
+               'stim_strengths': [],
+               'revise_choice': [],
+               'wait_time': [],
+               'post_stim_delay': [],
+               'completed_trials': [],
+               'early_withdrawal_rate': [],
+               'performance_easy': [],
+               'extended_stim': []}
+    
+    
+    #Locate the data in folder
+    base_dir = get_labdata_preferences()['paths'][0]
+    for session in ses_list:
+        metrics['session'].append(session)
+        if len(glob(os.path.join(base_dir, subject, session, datatype, '*.mat'))) == 0: #Check if chipmunk file is there
+            subprocess.run(['labdata', 'get', subject, '-s', session, '-d', datatype, '-i', "*.mat"])
+        metrics['corrupted'].append(False) #Assume things are find with this mat file
+        if len(glob(os.path.join(base_dir, subject, session, datatype, '*.h5'))) == 0: #Check if converted h5 file is present
+            try:
+                _ = convert_specified_behavior_sessions([glob(os.path.join(base_dir, subject, session, datatype, '*.mat'))[0]])
+            except:
+                pass #Use pass here because if a matfile exists but there is some issue with the conversion it only throws a warning
+        if len(glob(os.path.join(base_dir, subject, session, datatype, '*.h5'))) == 0: #Check again whether a file exists now
+                metrics['corrupted'][-1] = True
+                metrics['modality'].append(None)
+                metrics['stim_strengths'].append([None])
+                metrics['revise_choice'].append(None)
+                metrics['wait_time'].append(None)
+                metrics['post_stim_delay'].append(None)
+                metrics['completed_trials'].append(None)
+                metrics['early_withdrawal_rate'].append(None)
+                metrics['performance_easy'].append(None)
+                metrics['extended_stim'].append(None)
+                continue #Skip to the next iteration if the file is broken
+        
+        #Extract some other metrics
+        trialdata = pd.read_hdf(glob(os.path.join(base_dir, subject, session, datatype, '*.h5'))[0])
+        metrics['revise_choice'].append(trialdata['revise_choice_flag'][0]) #Were animals allowed to change their mind?
+        
+        mods = np.unique(trialdata['stimulus_modality'].tolist())
+        if mods.shape[0] == 1:
+            metrics['modality'].append(mods[0])
+        elif mods.shape[0] > 1:
+            metrics['modality'].append('mixed')
+        
+        stim_rate = [x.shape[0] for x in trialdata['stimulus_event_timestamps']]
+        metrics['stim_strengths'].append(np.unique(stim_rate))
+        try:
+            metrics['wait_time'].append(np.mean(trialdata['waitTime'])) #This is the time animals are required to wait
+        except:
+            metrics['wait_time'].append(np.mean(trialdata['actual_wait_time']))
+        try:
+            metrics['post_stim_delay'].append(np.mean(trialdata['postStimDelay'])>0) #This is true when a random delay was added
+        except:
+            metrics['post_stim_delay'].append(False) #If it is not specified rely on the wait time criterion alone.
+        metrics['completed_trials'].append(np.sum(np.isnan(trialdata['response_side'])==0)) #Number of completed trials
+        metrics['early_withdrawal_rate'].append(np.sum(trialdata['outcome_record']==-1)/trialdata.shape[0]) #Early withdrawal rate
+        easy_str = [np.min(np.unique(stim_rate)), np.max(np.unique(stim_rate))]
+        consider = ((stim_rate == easy_str[0]) | (stim_rate == easy_str[1])) & (np.isnan(trialdata['response_side'])==0)
+        metrics['performance_easy'].append(np.mean(trialdata['outcome_record'][consider]))
+        try:
+            metrics['extended_stim'].append(np.mean(trialdata['ExtraStimulusDuration']))
+        except:
+            metrics['extended_stim'].append(0) #Be conservative here and assume no extended stim if it can't be found
+    session_metrics = pd.DataFrame(metrics)
+    print(f'Computed session metrics for {subject} in {time() - start} seconds.')
+    print('-------------------------------------------------------------------')
+    return session_metrics
+
+#-------------------------------------------------------------------------------
