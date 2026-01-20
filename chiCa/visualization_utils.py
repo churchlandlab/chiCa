@@ -180,3 +180,17 @@ def plot_timecourse(ax, data, frame_rate, index_list, spacer = 8, colors = None,
     ax.legend()
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
+
+#-----------------------------------------------------------------------------
+#%%
+def white_to_color(rgb_color):
+    '''Generate a colormap that start with white and ends with
+    a desired color.'''
+    from matplotlib.colors import ListedColormap
+    N = 256
+    vals = np.ones((N, 4))
+    vals[:, 0] = np.linspace(1,rgb_color[0]/256, N)
+    vals[:, 1] = np.linspace(1,rgb_color[1]/256, N)
+    vals[:, 2] = np.linspace(1,rgb_color[2]/256, N)
+    newcmp = ListedColormap(vals)
+    return newcmp

@@ -1429,6 +1429,9 @@ def get_chipmunk_behavior(session_dir):
     
     out_dict['valid_two_back'] = ((np.isnan(out_dict['choice'])==0) & (np.isnan(out_dict['prior_choice'])==0)) & (np.isnan(out_dict['choice_two_back'])==0)
     
+    out_dict['early_withdrawal'] = np.array(trialdata['outcome_record'] == -1)
+    out_dict['no_choice_trial'] = np.array(trialdata['outcome_record'] == 2)
+    
     out_dict['session'] = [os.path.split(session_dir)[1]] * trialdata.shape[0]
     return pd.DataFrame(out_dict)
     
