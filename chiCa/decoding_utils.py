@@ -112,10 +112,10 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
                 state_timing = trialdata[state_name][n][-1][0]
             if np.isnan(state_timing) == 0: #The state has been visited
                 try:    
-                      frame_time = np.arange(trial_start_time_covered[n], (trialdata[trial_end_state_name][n][0] + 30) - trialdata['Sync'][n][0] + average_interval, average_interval) #Add one more frame as safety margin
+                      frame_time = np.arange(trial_start_time_covered[n], (trialdata[trial_end_state_name][n][0] + 100) - trialdata['Sync'][n][0] + average_interval, average_interval) #Add one more frame as safety margin
                       #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
                 except:
-                      frame_time = np.arange(trial_start_time_covered[n], (trialdata[trial_end_state_name][n][0] + 30) - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
+                      frame_time = np.arange(trial_start_time_covered[n], (trialdata[trial_end_state_name][n][0] + 100) - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
                       #If this is the previous implementation of chipmunk
                 tmp = frame_time - state_timing #Calculate the time difference
                 state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_starts[n])
@@ -136,10 +136,10 @@ def find_state_start_frame_imaging(state_name, trialdata, average_interval, tria
                 state_timing = trialdata[state_name][n][-1][0]
             if np.isnan(state_timing) == 0: #The state has been visited
                 try:    
-                      frame_time = np.arange(0, (trialdata[trial_end_state_name][n][0] + 30) - trialdata['Sync'][n][0] + average_interval, average_interval)
+                      frame_time = np.arange(0, (trialdata[trial_end_state_name][n][0] + 100) - trialdata['Sync'][n][0] + average_interval, average_interval)
                       #Generate frame times starting the first frame at the end of its coverage of trial inforamtion
                 except:
-                      frame_time = np.arange(0, (trialdata[trial_end_state_name][n][0] + 30) - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
+                      frame_time = np.arange(0, (trialdata[trial_end_state_name][n][0] + 100) - trialdata['ObsTrialStart'][n][0] + average_interval, average_interval)
                       #If this is the previous implementation of chipmunk
                 tmp = frame_time - state_timing #Calculate the time difference
                 state_start_frame[n] = int(np.where(tmp > 0)[0][0] + trial_starts[n])
