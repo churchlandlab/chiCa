@@ -1332,7 +1332,7 @@ def cross_decoding_analysis(decoding_models, data, labels, valid_trials):
     #input check
     if isinstance(decoding_models, pd.DataFrame):
         dict_list = []
-        for k in output_models:
+        for k in decoding_models:
                 dict_list.append(k.to_dict('list'))       
         decoding_models = dict_list
         
@@ -1350,7 +1350,7 @@ def cross_decoding_analysis(decoding_models, data, labels, valid_trials):
             tmp_idx.append(decoding_models[time_p]['pick_to_balance'][k][decoding_models[time_p]['test_index'][k]])
         tmp_idx = np.hstack(tmp_idx)
         trial_idx = np.unique(tmp_idx) #This is with respect to the valid_trials as valid trial indices
-        assert trial_idx.shape[0] == valid_trials.shape[0], f'Not all the trials were sampled in session: {session_dir} at timepoint: {time_p}'
+        assert trial_idx.shape[0] == valid_trials.shape[0], f'Not all the trials were sampled in this session at timepoint: {time_p}'
         
         for idx in range(len(decoding_models)):
             if idx == time_p: #When the model is the 

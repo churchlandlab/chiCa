@@ -7,3 +7,4 @@ from .chipmunk_analysis_tools import *
 from .decoding_utils import *
 from .encoding_utils import *
 from .visualization_utils import *
+from .load_cnmfe_outputs import *
