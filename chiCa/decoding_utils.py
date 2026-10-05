@@ -471,7 +471,7 @@ def balance_dataset(labels, secondary_labels = None, mode = 'proportional'):
     return pick_to_balance, sample_num
 
 #%%-----------Draw
-def balance_dataset_cover_all(labels, secondary_labels = None, mode = 'proportional', number_of_draws = 20):
+def balance_dataset_cover_all(labels, secondary_labels = None, mode = 'proportional', number_of_draws = 20, sample_num = None):
     '''Balance the number of observaitions for each class in the dataset by
     subsampling from the majority classes while retaining all observations of 
     the minority class. This function offers the option to balance for two
@@ -488,7 +488,8 @@ def balance_dataset_cover_all(labels, secondary_labels = None, mode = 'proportio
     fixed proportions between the two main class labels (proportional, default)
     or whether to take equal numbers of samples from all subclasses (equal).
     This function differs from balance_dataset in that it generates a number of
-    draws and ensures that all the data are actually sampled at least once. 
+    draws and ensures that all the data are actually sampled at least once. Using
+    sample_num the user can set a specified number of samples per draw.
     
     
     Parameters
@@ -501,13 +502,14 @@ def balance_dataset_cover_all(labels, secondary_labels = None, mode = 'proportio
           where all secondary labels occur with equal proportion inside the 
           primary labels.
     number_of_draws: int, how many rounds of subsampling should be used
+    sample_num: int, the number of per class samples for the primary labels.
     
     Returns
     -------
     pick_to_balance: list of numpy arrays, vector of indices for samples to be icluded
                      to obtain a balanced dataset, one list element per draw
-    sample_num = list of int, the number of samples per label. This means that
-                 for binary classification pick_to_balance.shape[0] == 2*sample_num.
+    sample_num: See above. If None is passed this number is generated during the 
+                balancing.
                      
     Examples
     --------
@@ -548,7 +550,17 @@ def balance_dataset_cover_all(labels, secondary_labels = None, mode = 'proportio
     if secondary_labels is None:    
         class_counts = np.array([np.sum(labels==classes[n]) for n in range(classes.shape[0])])
         #Convoluted code: sum up all the labels falling under one class for the two different classes
-        pick_number = int(np.min(class_counts)) #Define how many sample per class to retain
+        if sample_num is None:
+            pick_number = int(np.min(class_counts)) #Define how many sample per class to retain
+            sample_num = pick_number #In this case the number of samples for each primary class
+            #is just the same as the number picked from every class. However, when secondary
+            #labels are introduced this is not the case anymore because the samples are now drawn from
+            #instances of any given primary and secondary label.
+        else:
+            if sample_num <= np.min(class_counts):
+                pick_number = sample_num
+            else:
+                raise ValueError(f'Specified number of samples exceeds the count of the minority class. Use at most {np.min(class_counts)} samples per class label')
         
         assert np.max(class_counts/pick_number) < number_of_draws, f"Please request at least {round(np.ceil(np.max(class_counts)/pick_number))} draws to cover all the labels."         
         
@@ -566,10 +578,10 @@ def balance_dataset_cover_all(labels, secondary_labels = None, mode = 'proportio
                 tmp.append(pick_samples)
             pick_to_balance.append(np.hstack(tmp))
             
-        sample_num = pick_number #In this case the number of samples for each primary class
-        #is just the same as the number picked from every class. However, when secondary
-        #labels are introduced this is not the case anymore because the samples are now drawn from
-        #instances of any given primary and secondary label.
+        # sample_num = pick_number #In this case the number of samples for each primary class
+        # #is just the same as the number picked from every class. However, when secondary
+        # #labels are introduced this is not the case anymore because the samples are now drawn from
+        # #instances of any given primary and secondary label.
                 
     elif secondary_labels is not None:
         #If one needs to balance a subclass inside the labels do the same thing again
@@ -584,12 +596,42 @@ def balance_dataset_cover_all(labels, secondary_labels = None, mode = 'proportio
                 #cont_table[1,k] = np.sum(secondary_labels[labels==1]==subclasses[k])
      
         #Find column minima, these are the minimum amount of samples of a specific secondary class between the classes
+        #Here the column minima are going to determine the pick_number    
         if mode == 'proportional':
-            col_min = np.min(cont_table, axis=0).astype(int)
+            tmp_col_min = np.min(cont_table, axis=0).astype(int)
+            if sample_num is None:
+                col_min = tmp_col_min
+            else:
+                if sample_num <= np.sum(tmp_col_min):
+                    #assert np.mod(sample_num,subclasses.shape[0]) == 0, f"For proportional balancing mode please specify a sample number that is divisible by the number of secondary classes."  
+                    if sample_num / subclasses.shape[0] <= np.min(tmp_col_min):
+                        col_min = np.ones(subclasses.shape[0]) * np.floor(sample_num / subclasses.shape[0])
+                        remainder = np.mod(sample_num,subclasses.shape[0]).astype(int)
+                    elif sample_num / subclasses.shape[0] > np.min(tmp_col_min):
+                        col_min = np.ones(subclasses.shape[0]) * np.min(tmp_col_min)
+                        tmp_remainder = sample_num - (subclasses.shape[0] * np.min(tmp_col_min))
+                        maj_indices = np.delete(np.arange(subclasses.shape[0]), np.argmin(tmp_col_min))
+                        add_to = np.floor(tmp_remainder / maj_indices.shape[0])
+                        col_min[maj_indices] = col_min[maj_indices] + add_to
+                        remainder = np.mod(tmp_remainder, maj_indices.shape[0])
+                        
+                    maj_indices = np.delete(np.arange(subclasses.shape[0]), np.argmin(tmp_col_min)) #Fill up the majority subclasses if it is not even to enable fewer draws
+                    for k in range(remainder):
+                        col_min[maj_indices] = col_min[maj_indices] + 1
+                else:
+                    raise ValueError(f'Specified number of samples exceeds the count of the minority class. Use at most {np.sum(tmp_col_min)} samples per class label')  
+       
         elif mode == 'equal':
-            col_min = np.tile(np.min(cont_table).astype(int), cont_table.shape[1])
-        #Here the column minima are going to determine the pick_number       
-        
+            tmp_col_min = np.tile(np.min(cont_table).astype(int), cont_table.shape[1])
+            if sample_num is None:
+                col_min = tmp_col_min
+            else:
+                if sample_num <= np.sum(tmp_col_min):
+                    assert np.mod(sample_num,subclasses.shape[0]) == 0, f"For equal balancing mode please specify a sample number that is divisible by the number of secondary classes."   
+                    col_min = np.tile(sample_num / subclasses.shape[0], cont_table.shape[1])
+                else:
+                    raise ValueError(f'Specified number of samples exceeds the count of the minority class. Use at most {np.sum(tmp_col_min)} samples per class label')
+               
         assert np.max(cont_table / col_min) < number_of_draws, f"Please request at least {round(np.ceil(np.max(cont_table / col_min)))} draws to cover all the labels." 
         
         class_indices = [[np.nan] * subclasses.shape[0] for k in range(classes.shape[0])] #Initialize a list with sublist to hold the indices of the label x secondary label combinations
@@ -622,8 +664,6 @@ def balance_dataset_cover_all(labels, secondary_labels = None, mode = 'proportio
         #Otherwise the number will be smaller
 
     return pick_to_balance, sample_num
-
-
 
 
 
@@ -733,30 +773,30 @@ def train_logistic_regression(data, labels, k_folds, model_params=None):
         #The shuffled control
         log_reg_shuffled = LogisticRegression(penalty = penalty, C = inverse_regularization_strength, solver = solver, fit_intercept = fit_intercept).fit(X_train,y_train_shuffled)
         
-        models['model_accuracy'][n] = log_reg.score(X_test, y_test)
-        models['model_coefficients'][n] = log_reg.coef_
-        models['model_prediction_logodds'][n] = log_reg.decision_function(X_test)
-        models['model_predictions'][n] = log_reg.predict(X_test)
+        models.loc[n,'model_accuracy'] = log_reg.score(X_test, y_test)
+        models.loc[n,'model_coefficients'] = log_reg.coef_
+        models.loc[n,'model_prediction_logodds'] = log_reg.decision_function(X_test)
+        models.loc[n,'model_predictions'] = log_reg.predict(X_test)
         if fit_intercept:
-            models['model_intercept'][n] = log_reg.intercept_[0] #Returns an array in this case
-            models['shuffle_intercept'][n] = log_reg_shuffled.intercept_[0]
+            models.loc[n,'model_intercept'] = log_reg.intercept_[0] #Returns an array in this case
+            models.loc[n,'shuffle_intercept'] = log_reg_shuffled.intercept_[0]
         else:
-            models['model_intercept'][n] = log_reg.intercept_
-            models['shuffle_intercept'][n] = log_reg_shuffled.intercept_
+            models.loc[n,'model_intercept'] = log_reg.intercept_
+            models.loc[n,'shuffle_intercept'] = log_reg_shuffled.intercept_
             
-        models['model_n_iter'][n] = log_reg.n_iter_[0]
+        models.loc[n,'model_n_iter'] = log_reg.n_iter_[0]
         
-        models['shuffle_accuracy'][n] = log_reg_shuffled.score(X_test, y_test)
-        models['shuffle_coefficients'][n] = log_reg_shuffled.coef_
-        models['shuffle_prediction_logodds'][n] = log_reg_shuffled.decision_function(X_test)
-        models['shuffle_predictions'][n] = log_reg_shuffled.predict(X_test)
+        models.loc[n,'shuffle_accuracy'] = log_reg_shuffled.score(X_test, y_test)
+        models.loc[n,'shuffle_coefficients'] = log_reg_shuffled.coef_
+        models.loc[n,'shuffle_prediction_logodds'] = log_reg_shuffled.decision_function(X_test)
+        models.loc[n,'shuffle_predictions'] = log_reg_shuffled.predict(X_test)
       
-        models['shuffle_n_iter'][n] = log_reg_shuffled.n_iter_[0]
+        models.loc[n,'shuffle_n_iter'] = log_reg_shuffled.n_iter_[0]
 
-        models['parameters'][n] = {'penalty': penalty, 'inverse_regularization_strength': inverse_regularization_strength, 'solver': solver}
-        models['fold_number'][n] = n
-        models['number_of_samples'][n]= X_train.shape[0]
-        models['test_index'][n] = test_index
+        models.at[n, 'parameters'] = {'penalty': penalty, 'inverse_regularization_strength': inverse_regularization_strength, 'solver': solver} #For some reason indexing is different for directories and other elements...
+        models.loc[n,'fold_number'] = n
+        models.loc[n,'number_of_samples'] = X_train.shape[0]
+        models.loc[n,'test_index'] = test_index
     
     return models
 
@@ -1339,7 +1379,7 @@ def cross_decoding_analysis(decoding_models, data, labels, valid_trials):
     prediction_accuracy = []
     shuffled_prediction_accuracy = [] #This will hold average prediction accuracy per fold and sampling run
     confusion_matrix = []
-    is_binary = np.shape(decoding_models[0]['model_coefficients'][0].shape)[0] == 1 #Check if it is binary classifier or multinomial
+    is_binary = decoding_models[0]['model_coefficients'][0].shape[0] == 1 #Check if it is binary classifier or multinomial
     
     for time_p in range(len(decoding_models)): #This is the reference time point for the cross decoding
         tmp_acc = []
@@ -1391,10 +1431,10 @@ def cross_decoding_analysis(decoding_models, data, labels, valid_trials):
                     shu_logodds.append(testing_data @ shu_coefs.T + decoding_models[time_p]['shuffle_intercept'][run])
                 #Calculate accuracy and confusion matrix
                 if is_binary: #Annoyingly one needs to stack stuff differently for 1d vs 2d...
-                    tmp_dec = np.hstack(tmp_logodds).T
-                    pred = np.sign(tmp_dec) == 1
-                    tmp_dec = np.hstack(shu_logodds).T
-                    shu_pred = np.sign(tmp_dec) == 1
+                    tmp_dec = np.vstack(tmp_logodds).T
+                    pred = np.squeeze(np.sign(tmp_dec) == 1)
+                    tmp_dec = np.vstack(shu_logodds).T
+                    shu_pred = np.squeeze(np.sign(tmp_dec) == 1)
                 else:
                     tmp_dec = np.vstack(tmp_logodds)
                     pred = np.argmax(tmp_dec,axis=1) #Love argmax!
